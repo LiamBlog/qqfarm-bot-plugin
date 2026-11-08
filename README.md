@@ -6,6 +6,10 @@
 
 ## 版本记录
 
+### 3.6.2
+- 构建支持 Windows：`bash build.sh 3.6.2 windows` 产出 `windows-amd64` 包（bin/qqfarm-bot.exe）
+- CI 矩阵扩展到三平台，Release 同时附带 linux-amd64 / linux-arm64 / windows-amd64
+
 ### 3.6.1
 - 修复设置页所有开关（启用推送 / 上线自动推送 / 自动巡检）点击无响应：隐藏的 checkbox 改为透明覆盖，点击轨道即可切换
 
@@ -53,10 +57,10 @@
 ## 构建
 
 ```bash
-bash build.sh 3.5.0 all
-# → dist/qqfarm-bot-ipc-plugin-linux-amd64-3.5.0.tar.gz（2.8 MB）
-# → dist/qqfarm-bot-ipc-plugin-linux-arm64-3.5.0.tar.gz（2.6 MB）
-# 也可以只构建单架构：bash build.sh 3.5.0 amd64
+bash build.sh 3.6.2 all       # Linux amd64 + arm64
+bash build.sh 3.6.2 windows   # Windows amd64（bin/qqfarm-bot.exe）
+bash build.sh 3.6.2 windows-arm64
+# 单平台：bash build.sh 3.6.2 amd64
 ```
 
 构建要求：Go 1.22+，`CGO_ENABLED=0`（脚本已设置），产物为静态链接 ELF，不依赖容器 glibc。

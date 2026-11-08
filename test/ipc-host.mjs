@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import readline from 'node:readline'
 import http from 'node:http'
 
-const PKG = join(new URL('..', import.meta.url).pathname, 'dist/package-amd64')
+const PKG = join(new URL('..', import.meta.url).pathname, 'dist/package-linux-amd64')
 const ENTRY = join(PKG, 'bin/qqfarm-bot')
 const PLUGIN_ID = 'qqfarm-bot'
 // 版本从构建产物清单读取，CI 用开发版本号也能跑

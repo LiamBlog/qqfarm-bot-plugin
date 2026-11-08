@@ -39,7 +39,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            name: linux-amd64
+          - arch: arm64
+            name: linux-arm64
+          - arch: windows
+            name: windows-amd64
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -58,7 +64,7 @@ jobs:
         run: bash build.sh "${{ steps.ver.outputs.version }}" "${{ matrix.arch }}"
       - uses: actions/upload-artifact@v4
         with:
-          name: qqfarm-bot-${{ matrix.arch }}
+          name: qqfarm-bot-${{ matrix.name }}
           path: |
             dist/*.tar.gz
             dist/*.sha256
@@ -77,8 +83,10 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-      - name: 构建双架构
-        run: bash build.sh "${GITHUB_REF_NAME#v}" all
+      - name: 构建 Linux 双架构 + Windows
+        run: |
+          bash build.sh "${GITHUB_REF_NAME#v}" all
+          bash build.sh "${GITHUB_REF_NAME#v}" windows
       - name: 上传到 Release
         uses: softprops/action-gh-release@v2
         with:

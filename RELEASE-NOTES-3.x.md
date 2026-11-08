@@ -1,6 +1,14 @@
 # 农场桥接助手 · 3.x 更新日志
 
-> 插件 ID：`qqfarm-bot`｜当前版本：**3.6.1**｜安装包：amd64 2.8 MB / arm64 2.6 MB（Go 单二进制，静态链接）
+> 插件 ID：`qqfarm-bot`｜当前版本：**3.6.2**｜安装包：amd64 2.8 MB / arm64 2.6 MB（Go 单二进制，静态链接）
+
+---
+
+## 3.6.2
+
+### 新增
+- Windows 构建支持（amd64 / arm64），安装包内为 `bin/qqfarm-bot.exe`
+- CI 与 Release 覆盖三平台
 
 ---
 
