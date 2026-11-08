@@ -1,0 +1,1553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>农场桥接助手 · 管理端</title>
+<script>
+(function () {
+  var KEY = 'mengka-admin-theme'
+  var saved = localStorage.getItem(KEY) || 'auto'
+  var dark = saved === 'dark' || (saved === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+  document.documentElement.dataset.mode = saved
+})()
+</script>
+<style>
+  :root {
+    --accent: #f0567c; --accent-2: #e0446e; --violet: #8b7cf6; --ok: #2fbf8f; --warn: #e79f37; --err: #e4485a; --blue: #3e9df6;
+    --r: 14px; color-scheme: dark;
+  }
+  :root[data-theme='dark'] {
+    --bg:#0d0f14; --bg2:#12151c; --card:#161a23; --card2:#1d2230; --hover:#232939;
+    --line:#262c3b; --line2:#303850; --text:#eceef4; --muted:#8a92a6; --faint:#5c6478;
+    --accent-soft:rgba(240,86,124,.13); --violet-soft:rgba(139,124,246,.13); --ok-soft:rgba(56,211,159,.13);
+    --warn-soft:rgba(242,178,76,.13); --err-soft:rgba(242,96,106,.13); --blue-soft:rgba(62,157,246,.13);
+    --row-hover:rgba(255,255,255,.025); --head-glow1:rgba(240,86,124,.1); --head-glow2:rgba(139,124,246,.09);
+    --shadow:0 10px 32px rgba(0,0,0,.35); --avatar-shadow:0 2px 8px rgba(0,0,0,.35);
+  }
+  :root[data-theme='light'] {
+    --bg:#f3f4f9; --bg2:#fff; --card:#fff; --card2:#f2f3f9; --hover:#eceef6;
+    --line:#e3e6ef; --line2:#d5d9e6; --text:#22252f; --muted:#6b7285; --faint:#9aa1b4;
+    --accent-soft:rgba(240,86,124,.1); --violet-soft:rgba(139,124,246,.1); --ok-soft:rgba(47,191,143,.12);
+    --warn-soft:rgba(231,159,55,.14); --err-soft:rgba(228,72,90,.1); --blue-soft:rgba(62,157,246,.1);
+    --row-hover:rgba(34,37,47,.025); --head-glow1:rgba(240,86,124,.07); --head-glow2:rgba(139,124,246,.07);
+    --shadow:0 8px 26px rgba(30,35,60,.07); --avatar-shadow:0 2px 6px rgba(30,35,60,.18);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(1200px 500px at 85% -10%, var(--head-glow1), transparent 60%),
+               radial-gradient(900px 420px at -10% 0%, var(--head-glow2), transparent 55%), var(--bg);
+    color: var(--text);
+    font: 14px/1.65 -apple-system,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+    min-height: 100vh; transition: background .25s, color .25s;
+  }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 999px; border: 2px solid var(--bg); }
+  :focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; border-radius: 6px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 22px 40px; }
+  html { scroll-behavior: smooth; }
+  @keyframes rise { from { opacity:0; transform:translateY(10px);} to {opacity:1; transform:none;} }
+  header {
+    animation: rise .4s ease both; display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    position: sticky; top: 0; z-index: 20; margin: 0 -22px; padding: 13px 22px;
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  .stat { animation: rise .45s ease both; }
+  .stat:nth-child(1){animation-delay:.05s}.stat:nth-child(2){animation-delay:.12s}.stat:nth-child(3){animation-delay:.19s}.stat:nth-child(4){animation-delay:.26s}
+  .grid>.card,.grid>div>.card { animation: rise .5s ease both; }
+  .grid>.card { animation-delay:.22s; }
+  .grid>div>.card:nth-child(1){animation-delay:.3s}.grid>div>.card:nth-child(2){animation-delay:.38s}.grid>div>.card:nth-child(3){animation-delay:.46s}
+
+  .logo { width:44px;height:44px;border-radius:13px;flex:none;background:linear-gradient(135deg,var(--accent),var(--violet));display:grid;place-items:center;box-shadow:0 6px 18px rgba(240,86,124,.3); }
+  .logo svg { width:24px;height:24px; }
+  .title-block { flex:1; min-width:220px; }
+  .title-block h1 { font-size:19px;font-weight:700;display:flex;align-items:center;gap:9px;flex-wrap:wrap; }
+  .title-block .sub { color:var(--muted);font-size:12.5px;margin-top:1px; }
+  .badge { font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--card2);border:1px solid var(--line);color:var(--muted);display:inline-flex;align-items:center;gap:6px; }
+  .dot { width:7px;height:7px;border-radius:50%;flex:none; }
+  .dot.on{background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}.dot.off{background:var(--err);box-shadow:0 0 0 3px var(--err-soft)}.dot.mid{background:var(--warn);box-shadow:0 0 0 3px var(--warn-soft)}
+  .head-actions { display:flex;gap:9px;align-items:center;flex-wrap:wrap; }
+  .countdown { color:var(--faint);font-size:12px;min-width:56px;text-align:right;font-variant-numeric:tabular-nums; }
+  .updated { color:var(--faint);font-size:11.5px;font-weight:400; }
+  .push-stat { font-size:11.5px;font-weight:600;color:var(--ok);background:var(--ok-soft);border-radius:999px;padding:2px 9px; }
+  .push-stat.has-err { color:var(--warn);background:var(--warn-soft); }
+
+  .btn { display:inline-flex;align-items:center;gap:7px;background:var(--card2);color:var(--text);border:1px solid var(--line2);border-radius:10px;padding:8px 15px;cursor:pointer;font-size:13px;font-weight:500;transition:border-color .15s,background .15s,transform .05s;text-decoration:none; }
+  .btn:hover { border-color:var(--accent);background:var(--hover); }
+  .btn:active { transform:translateY(1px); }
+  .btn:disabled { opacity:.45;cursor:not-allowed; }
+  .btn.primary { background:linear-gradient(135deg,var(--accent),var(--accent-2));border-color:transparent;color:#fff;box-shadow:0 4px 14px rgba(240,86,124,.28); }
+  .btn.primary:hover { filter:brightness(1.06); }
+  .btn.icon-only { padding:8px 10px; }
+  .btn svg { width:15px;height:15px;flex:none; }
+  .spin { display:inline-block;animation:rot 1s linear infinite; }
+  @keyframes rot { to{transform:rotate(360deg);} }
+
+  .stats { display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:6px; }
+  .stat { background:linear-gradient(160deg,var(--card),var(--bg2));border:1px solid var(--line);border-radius:var(--r);padding:15px 18px;display:flex;align-items:center;gap:13px;transition:transform .15s,border-color .15s,box-shadow .15s; }
+  .stat:hover { transform:translateY(-2px);border-color:var(--line2);box-shadow:var(--shadow); }
+  .stat .ico { width:40px;height:40px;border-radius:11px;display:grid;place-items:center;flex:none; }
+  .stat .ico svg { width:20px;height:20px; }
+  .ico.rose{background:var(--accent-soft);color:var(--accent)}.ico.violet{background:var(--violet-soft);color:var(--violet)}
+  .ico.green{background:var(--ok-soft);color:var(--ok)}.ico.amber{background:var(--warn-soft);color:var(--warn)}
+  .stat .num { font-size:21px;font-weight:700;line-height:1.2;font-variant-numeric:tabular-nums; }
+  .stat .num:empty::before { content:"";display:inline-block;width:38px;height:16px;border-radius:6px;vertical-align:middle;
+    background:linear-gradient(90deg,var(--card2) 25%,var(--hover) 50%,var(--card2) 75%);background-size:200% 100%;animation:shine 1.2s infinite; }
+  .stat .lbl { color:var(--muted);font-size:12px; }
+  .stat .body { flex:1;min-width:0; }
+  .donut { --size:42px;position:relative;width:var(--size);height:var(--size);flex:none; }
+  .donut svg { width:var(--size);height:var(--size);transform:rotate(-90deg); }
+  .donut circle { fill:none;stroke-width:5; }
+  .donut .ring { stroke:var(--line); }
+  .donut .val { stroke:var(--ok);stroke-linecap:round;transition:stroke-dashoffset .6s ease; }
+  .donut .pct { position:absolute;inset:0;display:grid;place-items:center;font-size:10.5px;font-weight:700; }
+
+  .grid { display:grid;grid-template-columns:1fr 380px;gap:16px;margin-top:16px;align-items:start; }
+
+  /* ================= 标签页导航 ================= */
+  .tabs { display:flex; gap:6px; margin:20px 0 18px; background:var(--card2); padding:5px; border-radius:13px; border:1px solid var(--line); overflow-x:auto; }
+  .tab { flex:1; min-width:112px; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:9px 14px; border-radius:10px; cursor:pointer; color:var(--muted); font-size:13.5px; font-weight:500; border:none; background:transparent; white-space:nowrap; transition:.15s; }
+  .tab:hover { color:var(--text); }
+  .tab.active { background:var(--hover); color:var(--text); font-weight:600; box-shadow:var(--shadow); }
+  .tab .cnt { font-size:11px; background:var(--accent-soft); color:var(--accent); border-radius:999px; padding:0 7px; font-weight:700; }
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; animation: rise .3s ease both; }
+  .tab-panel .stats { margin-top:0; margin-bottom:16px; }
+  .panel-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(360px,1fr)); gap:14px; }
+  .panel-card { border:1px solid var(--line); border-radius:var(--r); padding:16px; background:var(--bg2); transition:border-color .15s, box-shadow .15s; }
+  .panel-card:hover { box-shadow:var(--shadow); }
+  .panel-card.active { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent-soft) inset; }
+  .panel-accs { display:flex; flex-wrap:wrap; gap:6px; margin-top:11px; }
+  .panel-actions { margin-top:12px; display:flex; gap:6px; flex-wrap:wrap; }
+  .diag-item { display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);flex-wrap:wrap; }
+  .diag-item:last-child { border-bottom:none; }
+  .diag-item .faint { margin-left:auto; }
+  .timeline { max-height:none; }
+  .card { background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;box-shadow:var(--shadow); }
+  .card+.card { margin-top:16px; }
+  .card-head { display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:13px;flex-wrap:wrap; }
+  .card-head h2 { font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px; }
+  .card-head h2 svg { width:16px;height:16px;color:var(--accent); }
+  .head-right { display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap; }
+  .faint { color:var(--faint);font-size:12px; } .muted{color:var(--muted);font-size:12px;}
+
+  .table-wrap { overflow-x:auto;margin:0 -4px; }
+  /* 手机端账号卡片（桌面隐藏，≤640px 替代表格） */
+  .account-cards { display:none;flex-direction:column;gap:10px;margin-top:2px; }
+  .acc-card { border:1px solid var(--line);border-radius:12px;background:var(--bg2);padding:13px; }
+  .acc-card.online { box-shadow:inset 3px 0 0 var(--ok); }
+  .acc-head { display:flex;gap:10px;align-items:flex-start; }
+  .acc-id { flex:1;min-width:0;display:flex;flex-direction:column;gap:2px; }
+  .acc-id .nick { font-weight:600;display:flex;align-items:center;gap:7px;flex-wrap:wrap; }
+  .acc-inst { margin-top:10px;padding-top:9px;border-top:1px dashed var(--line);display:flex;flex-direction:column;gap:7px; }
+  .acc-row { display:flex;align-items:center;gap:7px;flex-wrap:wrap; }
+  .acc-row .mini-btn { margin-left:auto; }
+  .acc-meta { color:var(--faint);font-size:11.5px; }
+  table { width:100%;border-collapse:collapse;font-size:13px; }
+  th { text-align:left;padding:7px 10px;color:var(--faint);font-weight:500;font-size:12px;white-space:nowrap;border-bottom:1px solid var(--line); }
+  td { padding:10px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);white-space:nowrap;vertical-align:middle; }
+  tbody tr { transition:background .12s; }
+  tbody tr:hover { background:var(--row-hover); }
+  tbody tr:last-child td { border-bottom:none; }
+  tr.group-online td:first-child { box-shadow: inset 3px 0 0 var(--ok); }
+  .qq-copy { cursor:pointer; }
+  .qq-copy:hover { color:var(--violet); }
+  .who { display:flex;align-items:center;gap:10px;cursor:pointer; }
+  .avatar { width:32px;height:32px;border-radius:10px;flex:none;display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff;background:linear-gradient(135deg,var(--violet),var(--accent));box-shadow:var(--avatar-shadow); }
+  .who .nick { font-weight:600;line-height:1.3; }
+  .who .qq { color:var(--faint);font-size:11.5px;font-variant-numeric:tabular-nums; }
+  .timeline-more { display:flex;justify-content:center;padding:12px 0 2px; }
+  /* 账号详情抽屉 */
+  .drawer-mask { position:fixed;inset:0;background:rgba(8,10,18,.42);opacity:0;pointer-events:none;transition:opacity .2s;z-index:60; }
+  .drawer-mask.show { opacity:1;pointer-events:auto; }
+  .drawer { position:fixed;top:0;right:0;height:100%;width:min(430px,94vw);background:var(--card);border-left:1px solid var(--line);
+    box-shadow:-18px 0 40px rgba(0,0,0,.2);transform:translateX(102%);transition:transform .24s cubic-bezier(.2,.8,.3,1);
+    z-index:61;display:flex;flex-direction:column; }
+  .drawer.show { transform:none; }
+  .drawer-head { display:flex;gap:11px;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line); }
+  .drawer-title { min-width:0; }
+  .drawer-title .nick { font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+  .drawer-close { margin-left:auto;background:transparent;border:none;color:var(--faint);font-size:14px;cursor:pointer;padding:6px;border-radius:8px; }
+  .drawer-close:hover { color:var(--text);background:var(--hover); }
+  .drawer-body { padding:16px 18px 30px;overflow:auto;flex:1; }
+  .dw-sec { margin-bottom:18px; }
+  .dw-sec h3 { font-size:11.5px;color:var(--faint);font-weight:500;margin-bottom:6px;letter-spacing:.04em; }
+  .dw-item { display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:12.5px;flex-wrap:wrap; }
+  .dw-item:last-child { border-bottom:none; }
+  .dw-item .faint { margin-left:auto; }
+  .acc-card .acc-head { cursor:pointer; }
+  .remark { display:inline-flex;align-items:center;gap:5px;max-width:150px; }
+  .remark .txt { overflow:hidden;text-overflow:ellipsis;max-width:120px; }
+  .remark .add { color:var(--faint);cursor:pointer;font-size:12px; }
+  .remark .add:hover { color:var(--violet); }
+  .remark svg { width:12px;height:12px;color:var(--faint);cursor:pointer;flex:none; }
+  .remark svg:hover { color:var(--violet); }
+  .remark input { width:120px;background:var(--bg2);border:1px solid var(--violet);border-radius:7px;color:var(--text);padding:3px 7px;font-size:12px;outline:none; }
+  .remark .ok { color:var(--ok); } .remark .no { color:var(--err); }
+  .pill { display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:2.5px 9px;border-radius:999px;font-weight:500; }
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .pill svg{width:12px;height:12px;flex:none}
+  .pill.g{color:var(--ok);background:var(--ok-soft)}.pill.r{color:var(--err);background:var(--err-soft)}
+  .pill.y{color:var(--warn);background:var(--warn-soft)}.pill.b{color:var(--blue);background:var(--blue-soft)}
+  .pill.n{color:var(--muted);background:var(--card2)}
+  .mini-btn { display:inline-flex;align-items:center;gap:5px;background:transparent;color:var(--muted);border:1px solid var(--line2);border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;transition:.15s; }
+  .mini-btn:hover:not(:disabled){color:var(--accent);border-color:var(--accent);background:var(--accent-soft);}
+  .mini-btn:disabled{opacity:.5;cursor:wait;}
+  .mini-btn svg{width:13px;height:13px;flex:none}
+  .empty { text-align:center;padding:26px 10px;color:var(--faint); }
+  .empty svg { width:34px;height:34px;margin-bottom:8px;opacity:.5;animation:float 3s ease-in-out infinite; }
+  .notice { display:flex;align-items:center;gap:11px;padding:11px 15px;border-radius:12px;margin-bottom:14px;
+    background:var(--warn-soft);border:1px solid color-mix(in srgb,var(--warn) 34%,transparent);
+    color:var(--warn);font-size:13px;flex-wrap:wrap; }
+  .notice svg { width:16px;height:16px;flex:none; }
+  .notice .mini-btn { margin-left:auto;color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent); }
+  .notice .mini-btn:hover { color:var(--warn);background:var(--warn-soft);border-color:var(--warn); }
+  #farmState { cursor:pointer; }
+  #farmState:hover { border-color:var(--accent); }
+  @keyframes float { 0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)} }
+  .err-text { color:var(--err);font-size:12px;margin-top:10px;white-space:pre-wrap; }
+  tr.group-start td { border-top: 1px solid var(--line2); }
+  .agg { display:inline-flex;gap:4px;align-items:center;margin-left:2px; }
+  .agg .pill { padding:1px 7px;font-size:11px; }
+
+  /* 动态流 */
+  .timeline { display:flex;flex-direction:column;gap:2px;max-height:300px;overflow-y:auto;margin:0 -4px; }
+  .tl-day { position:sticky;top:0;z-index:1;background:var(--card);color:var(--faint);font-size:11px;font-weight:600;letter-spacing:.05em;padding:7px 4px 3px; }
+  .tl-item { display:flex;gap:10px;padding:7px 6px;border-radius:9px;align-items:flex-start; }
+  .tl-item:hover { background:var(--row-hover); }
+  .tl-ico { width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex:none;margin-top:1px; }
+  .tl-ico svg { width:14px;height:14px; }
+  .tl-ico.push { background:var(--accent-soft);color:var(--accent); }
+  .tl-ico.online { background:var(--ok-soft);color:var(--ok); }
+  .tl-ico.offline { background:var(--err-soft);color:var(--err); }
+  .tl-ico.panel { background:var(--blue-soft);color:var(--blue); }
+  .hist-filters { display:inline-flex;gap:2px;background:var(--card2);border:1px solid var(--line);border-radius:999px;padding:2px; }
+  .hf-btn { border:none;background:transparent;color:var(--muted);font-size:12px;padding:4px 11px;border-radius:999px;cursor:pointer;font-weight:500;transition:.15s; }
+  .hf-btn:hover { color:var(--text); }
+  .hf-btn.active { background:var(--accent-soft);color:var(--accent);font-weight:600; }
+  .code-age { display:inline-flex;align-items:center;gap:4px;margin-top:4px;font-size:11px; }
+  .code-age .pill { padding:1px 7px;font-size:11px; }
+  .tl-body { flex:1;min-width:0; }
+  .tl-msg { font-size:12.5px;line-height:1.45;word-break:break-all; }
+  .tl-time { color:var(--faint);font-size:11px; }
+  .search { background:var(--bg2);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:6px 11px;font-size:12.5px;width:190px;outline:none;transition:border-color .15s; }
+  .search:focus { border-color:var(--violet); }
+  .acc-filter { display:inline-flex;gap:5px;margin-left:auto; }
+  .chip { background:var(--card2);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:4px 12px;font-size:12px;cursor:pointer;transition:.15s; }
+  .chip:hover { color:var(--text);border-color:var(--line2); }
+  .chip.active { color:var(--accent);border-color:var(--accent);background:var(--accent-soft);font-weight:600; }
+  .skeleton td{color:transparent}.skeleton .bar{display:inline-block;height:12px;border-radius:6px;background:linear-gradient(90deg,var(--card2) 25%,var(--hover) 50%,var(--card2) 75%);background-size:200% 100%;animation:shine 1.2s infinite;}
+  .sk-bar{display:inline-block;height:12px;border-radius:6px;background:linear-gradient(90deg,var(--card2) 25%,var(--hover) 50%,var(--card2) 75%);background-size:200% 100%;animation:shine 1.2s infinite;}
+  @keyframes shine { to{background-position:-200% 0} }
+
+  /* 面板列表 */
+  .panel-row { border:1px solid var(--line);border-radius:12px;padding:12px 13px;margin-top:10px;background:var(--bg2); }
+  .panel-row.active { border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-soft) inset; }
+  .panel-top { display:flex;align-items:center;gap:9px; }
+  .panel-name { font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:7px;flex:1;min-width:0; }
+  .panel-url { color:var(--faint);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;margin-top:3px;cursor:pointer;transition:color .15s; }
+  .panel-url:hover { color:var(--violet); }
+  .star { background:none;border:none;cursor:pointer;color:var(--faint);padding:2px;display:grid; }
+  .star svg{width:16px;height:16px}.star.on{color:var(--warn)}
+  .panel-meta { display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap; }
+  .status-chip { display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:2px 9px;border-radius:999px; }
+  .status-chip.ok{color:var(--ok);background:var(--ok-soft)}.status-chip.err{color:var(--err);background:var(--err-soft)}
+  .status-chip svg{width:12px;height:12px}
+  .panel-form { border:1px dashed var(--line2);border-radius:12px;padding:13px;margin-top:14px;display:none;flex-wrap:wrap;gap:10px; }
+  .panel-form.show { display:flex; }
+  .panel-form .row { flex:1 1 260px; display:grid;grid-template-columns:72px 1fr;gap:8px;align-items:center; }
+  .panel-form label { color:var(--muted);font-size:12px; }
+  .panel-form .btns { width:100%; display:flex;justify-content:flex-end;gap:8px; }
+
+  .form { display:grid;grid-template-columns:118px 1fr;gap:12px 14px;align-items:center; }
+  .form label{color:var(--muted);font-size:12.5px;}
+  .form .field{display:flex;flex-direction:column;gap:3px;}
+  .form .field small{color:var(--faint);font-size:11px;}
+  input[type=text],input[type=number],input[type=password] { background:var(--bg2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:8px 11px;width:100%;font-size:13px;outline:none;transition:border-color .15s; }
+  input:focus { border-color:var(--violet); }
+  .switch{position:relative;width:42px;height:23px;display:inline-block;}
+  .switch input{display:none}
+  .switch i{position:absolute;inset:0;background:var(--line);border-radius:999px;transition:.2s;cursor:pointer}
+  .switch i::after{content:"";position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:3px;left:3px;transition:.2s;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+  .switch input:checked+i{background:var(--accent)}.switch input:checked+i::after{left:22px}
+  .save-row{grid-column:1/-1;display:flex;justify-content:flex-end;margin-top:2px;}
+  .cfg-body { display: block; }
+  #settingsCard.collapsed .cfg-body { display: none; }
+  #btnSettings svg { transition: transform .2s; }
+  #settingsCard.collapsed #btnSettings svg { transform: rotate(-90deg); }
+  footer { margin-top:22px;color:var(--faint);font-size:11.5px;text-align:center; }
+  footer code{background:var(--card2);padding:1px 7px;border-radius:6px;font-size:11px;}
+
+  #toast { position:fixed; right:22px; bottom:22px; display:none; align-items:center; gap:9px; overflow:hidden;
+    background:var(--card2); border:1px solid var(--line2); border-radius:12px; padding:11px 20px 13px; font-size:13px; z-index:50; box-shadow:var(--shadow);
+    opacity:0; transform:translateY(10px); transition:opacity .18s, transform .18s; max-width:min(420px, 88vw); }
+  #toast.show{display:flex;opacity:1;transform:translateY(0)}
+  #toast svg{width:16px;height:16px;flex:none}
+  #toast.ok svg{color:var(--ok)}#toast.err svg{color:var(--err)}
+  #toast::after{content:"";position:absolute;left:0;bottom:0;height:2.5px;width:100%;background:linear-gradient(90deg,var(--accent),var(--violet));transform-origin:left;animation:shrink 2.8s linear forwards;}
+  @keyframes shrink { to{transform:scaleX(0)} }
+
+  /* ================= 视觉打磨 ================= */
+  ::selection { background:var(--accent-soft); color:var(--text); }
+  ::-webkit-scrollbar-thumb:hover { background:color-mix(in srgb,var(--accent) 40%,var(--line2)); }
+
+  /* 头部：底部渐变发丝线 + logo 光晕 */
+  header::after { content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+    background:linear-gradient(90deg,transparent,var(--accent),var(--violet),transparent);opacity:.42; }
+  .logo { position:relative; }
+  .logo::after { content:"";position:absolute;inset:-7px;border-radius:19px;z-index:-1;
+    background:linear-gradient(135deg,var(--accent),var(--violet));filter:blur(15px);opacity:.3; }
+  .title-block h1 { letter-spacing:.2px; }
+
+  /* 标签页：选中项加底部渐变指示 */
+  .tab { position:relative; }
+  .tab.active { background:var(--card);box-shadow:0 2px 10px rgba(0,0,0,.08); }
+  .tab.active::after { content:"";position:absolute;left:50%;transform:translateX(-50%);bottom:3px;width:20px;height:2px;
+    border-radius:2px;background:linear-gradient(90deg,var(--accent),var(--violet)); }
+
+  /* 卡片标题图标：色块容器，层次更清晰 */
+  .card-head h2 svg { width:15px;height:15px;padding:5px;box-sizing:content-box;border-radius:9px;background:var(--accent-soft); }
+
+  /* 统计卡：图标悬停微放大 + 主按钮内高光 */
+  .stat .ico { transition:transform .18s ease; }
+  .stat:hover .ico { transform:scale(1.07); }
+  .stat .num { letter-spacing:-.3px; }
+  .btn.primary { box-shadow:inset 0 1px 0 rgba(255,255,255,.26),0 4px 14px rgba(240,86,124,.3); }
+
+  /* 表格：表头着色 + 行悬停更柔和 */
+  thead th { background:color-mix(in srgb,var(--card2) 60%,transparent); }
+  tbody tr:hover { background:var(--row-hover); }
+
+  /* 时间线：左侧连接线，形成时间轴 */
+  .tl-item { position:relative; }
+  .tl-item::before { content:"";position:absolute;left:18px;top:33px;bottom:-3px;width:1px;
+    background:linear-gradient(var(--line2),transparent); }
+  .tl-item:last-child::before { display:none; }
+
+  /* 空状态：虚线圆底 */
+  .empty svg { padding:12px;box-sizing:content-box;border-radius:50%;background:var(--card2);
+    border:1px dashed var(--line2);opacity:.85; }
+
+  /* 面板卡：顶部渐变条（悬停/选中显现） */
+  .panel-card { position:relative;overflow:hidden; }
+  .panel-card::before { content:"";position:absolute;left:0;right:0;top:0;height:2px;
+    background:linear-gradient(90deg,var(--accent),var(--violet));opacity:0;transition:opacity .2s; }
+  .panel-card:hover::before,.panel-card.active::before { opacity:.85; }
+
+  /* 抽屉：渐变底 + 色块标题 */
+  .drawer { background:linear-gradient(180deg,var(--card),var(--bg2)); }
+  .drawer-head { background:linear-gradient(135deg,var(--accent-soft),var(--violet-soft)); }
+  .drawer-mask.show { backdrop-filter:blur(2px); }
+  .dw-sec h3 { display:flex;align-items:center;gap:6px; }
+  .dw-sec h3::before { content:"";width:3px;height:11px;border-radius:2px;background:linear-gradient(var(--accent),var(--violet)); }
+  .dw-item { border-radius:8px;padding-left:6px;padding-right:6px;transition:background .12s; }
+  .dw-item:hover { background:var(--row-hover); }
+
+  /* 其他细节 */
+  #toast { box-shadow:0 14px 40px rgba(0,0,0,.3); }
+  .badge { border-color:color-mix(in srgb,var(--line2) 72%,transparent); }
+  .push-stat { background:linear-gradient(135deg,var(--ok-soft),color-mix(in srgb,var(--ok) 9%,transparent)); }
+
+  /* ================= 细节打磨 ================= */
+  /* 浅色文字提高可读性（小字号提示文字） */
+  :root[data-theme='dark'] { --faint:#7a8399; }
+  :root[data-theme='light'] { --faint:#717a8e; }
+  /* 长昵称不再撑破单元格 */
+  .who .nick { max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+  /* 胶囊与数字列对齐统一 */
+  .pill { line-height:1.35; }
+  .c-level,.c-social { text-align:center;font-variant-numeric:tabular-nums; }
+  /* 按压与焦点反馈 */
+  .mini-btn:active:not(:disabled),.btn:active { transform:translateY(1px); }
+  .chip:active { transform:scale(.97); }
+  .chip:focus-visible,.mini-btn:focus-visible,.tab:focus-visible { outline-color:var(--accent);outline-offset:1px; }
+  /* 页面错误提示改为告警块 */
+  .err-text:not(:empty) { margin-top:12px;padding:10px 12px;border-radius:10px;line-height:1.5;
+    background:var(--err-soft);border:1px solid color-mix(in srgb,var(--err) 30%,transparent);color:var(--err);font-size:12.5px; }
+  /* 提示浮层图标底色 */
+  #toastIcon { width:22px;height:22px;border-radius:50%;display:grid;place-items:center;flex:none; }
+  #toastIcon svg { width:14px;height:14px; }
+  #toast.ok #toastIcon { background:var(--ok-soft); }
+  #toast.err #toastIcon { background:var(--err-soft); }
+  /* 抽屉打开时锁定背景滚动 */
+  body.no-scroll { overflow:hidden; }
+  .drawer-close { padding:8px 9px;font-size:15px;line-height:1; }
+
+  /* ================= 布局优化 ================= */
+  /* 统计卡合并为一条概览条，节省首屏高度 */
+  .stats { display:flex;align-items:stretch;background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+    box-shadow:var(--shadow);padding:4px;gap:0;overflow:hidden; }
+  .stat { flex:1;min-width:0;border:none;background:none;box-shadow:none;padding:9px 14px;border-radius:0;animation:none; }
+  .stat + .stat { border-left:1px solid var(--line); }
+  .stat:hover { transform:none;box-shadow:none;border-color:transparent;background:var(--row-hover); }
+  .stat .ico { width:34px;height:34px;border-radius:10px; }
+  .stat .ico svg { width:17px;height:17px; }
+  .stat .num { font-size:19px; }
+  .stat .lbl { font-size:11.5px; }
+  .stats .donut { --size:36px; }
+
+  /* 中屏（≤820px）直接切换卡片视图，避免 7 列表格横向滚动 */
+  @media (max-width:820px){
+    .table-wrap { display:none; }
+    .account-cards { display:flex; }
+  }
+  @media (max-width:640px){
+    .stats { flex-wrap:wrap;padding:2px; }
+    .stat { flex:1 1 50%;padding:10px 12px; }
+    .stat + .stat { border-left:none; }
+    .stat:nth-child(even) { border-left:1px solid var(--line); }
+    .stat:nth-child(n+3) { border-top:1px solid var(--line); }
+  }
+
+  .c-check { width:34px;padding-right:0;text-align:center; }
+  .c-check input { accent-color:var(--accent);width:14px;height:14px;cursor:pointer;vertical-align:middle; }
+  .bulk-bar { display:none;align-items:center;gap:6px;margin-left:auto;padding:3px 9px;border-radius:999px;background:var(--accent-soft); }
+  .bulk-bar.show { display:flex; }
+  .bulk-bar #bulkCount { font-size:12px;font-weight:600;color:var(--accent); }
+  .bulk-bar + .acc-filter { margin-left:6px; }
+  @media (max-width:640px){
+    .bulk-bar { order:3;margin-left:0;width:100%;justify-content:space-between; }
+    .bulk-bar + .acc-filter { margin-left:auto; }
+  }
+
+  /* 抽屉内操作行 */
+  .dw-actions { display:flex;gap:6px;margin-top:6px; }
+  .dw-actions .mini-btn { flex:1;justify-content:center; }
+  .dw-remark-form { display:flex;gap:6px;width:100%; }
+  .dw-remark-form input { flex:1;min-width:0;background:var(--bg2);border:1px solid var(--line2);color:var(--text);
+    border-radius:8px;padding:5px 9px;font-size:12.5px;outline:none; }
+  .dw-remark-form input:focus { border-color:var(--violet); }
+
+  @media (max-width:960px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:640px){
+    .btn-t{display:none}
+    .btn{padding:8px 11px}
+    .sub{display:none}
+    .title-block h1{font-size:16.5px}
+    .table-wrap{display:none}
+    .account-cards{display:flex}
+    th,td{padding:8px 7px}
+    .tab{min-width:84px;padding:8px 6px;font-size:12.5px;gap:5px}
+    .mini-btn{padding:7px 11px;min-height:30px}
+    .drawer-close{padding:9px 10px}
+    .form{grid-template-columns:1fr;gap:5px}
+    .form label{margin-top:8px}
+    .save-row .btn{width:100%;justify-content:center}
+    .panel-grid{grid-template-columns:1fr}
+    .who .nick{max-width:104px;overflow:hidden;text-overflow:ellipsis}
+  }
+  @media (max-width:560px){
+    body{padding:0 0 30px}.wrap{padding:0 14px 30px}header{padding-top:16px}
+    .stats{grid-template-columns:1fr 1fr;gap:10px}.stat{padding:12px 14px}.card{padding:15px;border-radius:12px}
+    .search{width:130px}.countdown,.updated{display:none}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 21V9"/><path d="M12 9C12 5 9 3 5 3c0 4 3 6 7 6z" fill="#fff" fill-opacity=".25"/>
+        <path d="M12 13c0-4 3-6 7-6 0 4-3 6-7 6z" fill="#fff" fill-opacity=".25"/>
+      </svg>
+    </div>
+    <div class="title-block">
+      <h1>农场桥接助手 <span class="badge" id="ver">v–</span></h1>
+      <div class="sub">萌卡账号农场 Code → qq-farm-bot 多面板自动推送与可视化管控</div>
+    </div>
+    <div class="head-actions">
+      <span class="badge" id="ipcState"><span class="dot on"></span>IPC 已连接</span>
+      <span class="badge" id="farmState" title="点击查看面板状态"><span class="dot mid"></span>面板检测中</span>
+      <button class="btn icon-only" id="btnTheme" title="切换主题（自动 / 浅色 / 深色）"></button>
+      <span class="countdown" id="countdown"></span>
+      <button class="btn" id="btnReload" title="立即刷新">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg><span class="btn-t">刷新</span>
+      </button>
+      <button class="btn primary" id="btnPushAll" title="推送全部在线安卓账号到当前面板">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+        <span class="btn-t">推送全部</span>
+      </button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs" role="tablist" aria-label="功能分区">
+    <button class="tab active" id="tab-accounts" role="tab" aria-selected="true" aria-controls="panel-accounts" data-tab="accounts">账号管理 <span class="cnt" id="tabCntAccounts">–</span></button>
+    <button class="tab" id="tab-panels" role="tab" aria-selected="false" aria-controls="panel-panels" tabindex="-1" data-tab="panels">farm 面板 <span class="cnt" id="tabCntPanels">–</span></button>
+    <button class="tab" id="tab-activity" role="tab" aria-selected="false" aria-controls="panel-activity" tabindex="-1" data-tab="activity">动态 <span class="cnt" id="tabCntActivity">–</span></button>
+    <button class="tab" id="tab-settings" role="tab" aria-selected="false" aria-controls="panel-settings" tabindex="-1" data-tab="settings">设置</button>
+  </nav>
+
+  <section class="tab-panel active" id="panel-accounts" role="tabpanel" aria-labelledby="tab-accounts" data-panel="accounts">
+  <div class="notice" id="noPanelNotice" style="display:none">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+    <span>还没有配置 farm 面板，账号 Code 暂时无处推送</span>
+    <button class="mini-btn" id="btnGoPanels">去添加面板 →</button>
+  </div>
+  <section class="stats">
+    <div class="stat"><div class="ico rose">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+      <div class="body"><div class="num" id="stAccounts"></div><div class="lbl">安卓账号（实例）</div></div>
+    </div>
+    <div class="stat"><div class="ico green">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92V21a1 1 0 0 1-1.09 1 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 3.2 3.1 1 1 0 0 1 4.2 2h4.09a1 1 0 0 1 1 .75c.12.72.37 1.42.72 2.06a1 1 0 0 1-.24 1.27l-1.6 1.6a16 16 0 0 0 6 6l1.6-1.6a1 1 0 0 1 1.27-.24c.64.35 1.34.6 2.06.72a1 1 0 0 1 .75 1z"/></svg></div>
+      <div class="body"><div class="num" id="stOnline"></div><div class="lbl">在线实例</div></div>
+      <div class="donut" title="在线占比">
+        <svg viewBox="0 0 42 42"><circle class="ring" cx="21" cy="21" r="17"/><circle class="val" id="donutVal" cx="21" cy="21" r="17" stroke-dasharray="106.8" stroke-dashoffset="106.8"/></svg>
+        <div class="pct" id="donutPct">–</div>
+      </div>
+    </div>
+    <div class="stat"><div class="ico violet">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="3"/><path d="m10 9 4 3-4 3z"/></svg></div>
+      <div class="body"><div class="num" id="stFarm"></div><div class="lbl">面板内账号总数</div></div>
+    </div>
+    <div class="stat"><div class="ico amber">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+      <div class="body"><div class="num" id="stRefresh"></div><div class="lbl">定时刷新（分钟）</div></div>
+    </div>
+  </section>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          萌卡账号 <span class="push-stat" id="pushStat" style="display:none"></span><span class="updated" id="updatedAt"></span>
+        </h2>
+        <div class="bulk-bar" id="bulkBar">
+          <span id="bulkCount">已选 0</span>
+          <button class="mini-btn" id="bulkPush" type="button">推送选中</button>
+          <button class="mini-btn" id="bulkClear" type="button">取消</button>
+        </div>
+        <div class="acc-filter">
+          <button class="chip active" data-filter="all">全部</button>
+          <button class="chip" data-filter="online">仅在线</button>
+        </div>
+        <input class="search" id="search" type="text" placeholder="搜索 QQ / 昵称 / 备注…">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col" class="c-check"><input type="checkbox" id="checkAll" title="全选可推送账号"></th><th scope="col">账号</th><th scope="col" class="c-proto">协议实例</th><th scope="col">状态</th><th scope="col" class="c-level">等级</th><th scope="col" class="c-social">好友/群</th><th scope="col">面板 Code</th><th scope="col">操作</th></tr></thead>
+          <tbody id="accounts"></tbody>
+        </table>
+      </div>
+      <div class="account-cards" id="accountCards"></div>
+      <div class="err-text" id="accErr"></div>
+    </div>
+  </section>
+
+  <section class="tab-panel" id="panel-panels" role="tabpanel" aria-labelledby="tab-panels" data-panel="panels">
+    <div class="card">
+      <div class="card-head">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="3"/><path d="m10 9 4 3-4 3z"/></svg>farm 面板</h2>
+        <div style="display:flex;gap:6px">
+        <button class="mini-btn" id="btnRepairNow" type="button" title="立即检查面板账号：已停止的补推、已推送过但缺失的补回当前面板">立即巡检</button>
+        <button class="btn primary" id="btnAddPanel" style="padding:7px 14px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>添加面板
+        </button>
+        </div>
+      </div>
+      <div class="panel-grid" id="panelList"></div>
+      <div class="panel-form" id="panelForm">
+        <div class="row"><label>名称</label><input type="text" id="pf_label" placeholder="FARM2"></div>
+        <div class="row"><label>地址</label><input type="text" id="pf_baseUrl" placeholder="http://host:3007"></div>
+        <div class="row"><label>访问 Code</label><input type="password" id="pf_accessCode" placeholder="该面板的访问 Code（编辑可留空保持不变）"></div>
+        <div class="btns">
+          <button class="mini-btn" id="pfCancel">取消</button>
+          <button class="btn primary" id="pfSave" style="padding:6px 14px">保存</button>
+        </div>
+      </div>
+      <div class="faint" style="margin-top:12px">★ 为当前推送目标（上线 / 定时刷新 / 推送全部均发往此面板）</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/></svg>诊断
+          <span class="pill y" id="diagCount" style="display:none"></span>
+        </h2>
+        <button class="mini-btn" id="btnDiagAll" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>一键处理
+        </button>
+      </div>
+      <div id="diagList"></div>
+      <div class="faint" style="margin-top:10px">对照萌卡实例与面板账号：未接入 / Code 过旧 / 面板账号已停止，支持逐项或一键处理</div>
+    </div>
+  </section>
+
+  <section class="tab-panel" id="panel-activity" role="tabpanel" aria-labelledby="tab-activity" data-panel="activity">
+    <div class="card">
+      <div class="card-head">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg>动态</h2>
+        <div class="head-right">
+          <div class="hist-filters" id="histFilters">
+            <button class="hf-btn active" data-f="all" type="button">全部</button>
+            <button class="hf-btn" data-f="push" type="button">推送</button>
+            <button class="hf-btn" data-f="account" type="button">账号</button>
+            <button class="hf-btn" data-f="panel" type="button">面板</button>
+          </div>
+          <button class="mini-btn" id="btnHistClear" type="button" title="清空动态流">清空</button>
+          <span class="faint">最近 120 条</span>
+        </div>
+      </div>
+      <div class="timeline" id="timeline"></div>
+      <div class="timeline-more" id="histMore" style="display:none">
+        <button class="mini-btn" id="btnHistMore" type="button">加载更多</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-panel" id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" data-panel="settings">
+    <div class="card">
+      <div class="card-head">
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></svg>推送设置
+          <span class="faint" id="cfgSummary" style="font-weight:400"></span>
+        </h2>
+      </div>
+      <form class="form" id="cfg" onsubmit="return false" style="max-width:660px">
+        <label>启用推送</label>
+        <span class="switch"><input type="checkbox" id="f_enabled"><i></i></span>
+        <label>上线自动推送</label>
+        <span class="switch"><input type="checkbox" id="f_pushOnLogin"><i></i></span>
+        <label>定时刷新</label>
+        <div class="field"><input type="number" id="f_refreshMinutes" min="0" step="5"><small>每 N 分钟重推一次；会重启运行中的会话，建议保持 0（低于 5 分钟按 5 分钟计）</small></div>
+        <label>自动巡检</label>
+        <span class="switch"><input type="checkbox" id="f_autoRepair"><i></i></span>
+        <label>巡检间隔</label>
+        <div class="field"><input type="number" id="f_repairMinutes" min="5" max="1440"><small>每 N 分钟检查一次：面板里已停止的账号自动补推；已推送过但被删除的账号补回当前面板</small></div>
+        <label>Code 保鲜</label>
+        <div class="field"><input type="number" id="f_staleHours" min="0" max="168"><small>在线账号 Code 超过 N 小时自动重推一次（0 关闭）；仅重推已推送过的账号，不会新增</small></div>
+        <div class="save-row"><button class="btn primary" id="btnSave">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>保存设置</button></div>
+      </form>
+      <div class="faint" id="nextRun" style="margin-top:14px"></div>
+      <div class="faint" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">实例 <code id="fInstanceId">–</code> · 数据目录 <code id="fDataPath">–</code></div>
+      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="mini-btn" id="btnExport" type="button" title="导出状态快照（不含面板访问 Code），便于反馈问题">导出诊断包</button>
+        <button class="mini-btn" id="btnCfgExport" type="button" title="导出推送配置（不含访问 Code）">导出配置</button>
+        <button class="mini-btn" id="btnCfgImport" type="button" title="从 JSON 导入推送配置">导入配置</button>
+        <input type="file" id="cfgFile" accept="application/json,.json" style="display:none">
+        <span class="faint">包含版本、配置（脱敏）、账号、面板状态与动态记录</span>
+      </div>
+    </div>
+  </section>
+
+  <footer>农场桥接助手 · qqfarm-bot</footer>
+</div>
+<div id="toast" role="status" aria-live="polite"><span id="toastIcon"></span><span id="toastMsg"></span></div>
+
+<div class="drawer-mask" id="drawerMask"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dwNick" aria-hidden="true">
+  <div class="drawer-head">
+    <div class="avatar" id="dwAvatar">?</div>
+    <div class="drawer-title">
+      <div class="nick" id="dwNick">–</div>
+      <div class="qq" id="dwQQ">–</div>
+    </div>
+    <button class="drawer-close" id="dwClose" type="button" title="关闭">✕</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+
+<script>
+const $ = id => document.getElementById(id)
+/* 安全取值：任何节点缺失都不再抛错，杜绝刷新循环 */
+const set = (id, fn) => { const el = $(id); if (el) fn(el) }
+/* 仅在内容变化时写 DOM：轮询刷新不再整块重建，保留悬停态、滚动位置与行内编辑 */
+const setHTML = (id, html, after) => {
+  const el = $(id); if (!el) return false
+  if (el.innerHTML === html) return false
+  if (el.contains(document.activeElement) && document.activeElement.matches('input,textarea')) return false
+  el.innerHTML = html
+  if (after) after(el)
+  return true
+}
+const ICONS = {
+  ok:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  err:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg>',
+  refresh:'<svg class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>',
+  upload:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>',
+  off:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>',
+  sun:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+  moon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
+  auto:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="12.5" rx="2.5"/><path d="M8 20.5h8M12 16.5v4"/></svg>',
+  android:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 10a7 7 0 0 1 14 0v6a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/><path d="M8.5 4.5 7.6 3M15.5 4.5l.9-1.5"/><path d="M9 13h.01M15 13h.01"/></svg>',
+  pc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="12.5" rx="2.5"/><path d="M8 20.5h8M12 16.5v4"/></svg>',
+  star:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></svg>',
+  edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>',
+  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+  pencil:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>',
+  link:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
+}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+let STATE = null
+let drawerReturnFocus = null
+let BUSY = false
+let SECONDS = 15
+let accFilter = 'all' // 账号筛选：all / online
+let historyLimit = 60 // 动态流条数（加载更多时 +60，最多 200）
+const selected = new Set() // 批量推送选中项：self_id:protocol_id
+let histFilter = 'all' // 动态流筛选：all / push / account / panel
+
+/* ---------- 主题 ---------- */
+const THEME_KEY='mengka-admin-theme', THEME_ORDER=['auto','light','dark']
+const THEME_LABEL={auto:'跟随系统',light:'浅色',dark:'深色'}
+const THEME_ICON={auto:ICONS.auto,light:ICONS.sun,dark:ICONS.moon}
+function applyTheme(mode){
+  const dark=mode==='dark'||(mode==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches)
+  document.documentElement.dataset.theme=dark?'dark':'light'
+  document.documentElement.dataset.mode=mode
+  const b=$('btnTheme'); if(b){b.innerHTML=THEME_ICON[mode];b.title=`主题：${THEME_LABEL[mode]}（点击切换）`}
+}
+applyTheme(localStorage.getItem(THEME_KEY)||'auto')
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{if((localStorage.getItem(THEME_KEY)||'auto')==='auto')applyTheme('auto')})
+set('btnTheme', b => b.onclick = () => {
+  const cur=localStorage.getItem(THEME_KEY)||'auto'
+  const next=THEME_ORDER[(THEME_ORDER.indexOf(cur)+1)%THEME_ORDER.length]
+  localStorage.setItem(THEME_KEY,next); applyTheme(next); toast(`主题已切换：${THEME_LABEL[next]}`)
+})
+
+/* ---------- 标签页 ---------- */
+const TAB_KEY = 'mengka-admin-tab'
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => {
+    const on = t.dataset.tab === name
+    t.classList.toggle('active', on)
+    t.setAttribute('aria-selected', on ? 'true' : 'false')
+    t.tabIndex = on ? 0 : -1
+  })
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === name))
+  localStorage.setItem(TAB_KEY, name)
+}
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => showTab(t.dataset.tab))
+// 标签页键盘导航：左右方向键 / Home / End
+$('tabs')?.addEventListener('keydown', e => {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return
+  const tabs = [...document.querySelectorAll('.tab')]
+  const i = tabs.indexOf(document.activeElement)
+  if (i < 0) return
+  e.preventDefault()
+  const next = e.key === 'Home' ? 0
+    : e.key === 'End' ? tabs.length - 1
+    : (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
+  tabs[next].focus()
+  showTab(tabs[next].dataset.tab)
+})
+showTab(localStorage.getItem(TAB_KEY) || 'accounts')
+// 空面板引导 + 顶部状态徽章跳转
+set('btnGoPanels', b => b.onclick = () => showTab('panels'))
+set('farmState', el => el.onclick = () => showTab('panels'))
+// 账号筛选：全部 / 仅在线
+document.querySelectorAll('.chip[data-filter]').forEach(c => c.onclick = () => {
+  accFilter = c.dataset.filter
+  document.querySelectorAll('.chip[data-filter]').forEach(x => x.classList.toggle('active', x === c))
+  if (STATE) render(STATE)
+})
+// 动态流加载更多 / 账号详情抽屉
+set('btnRepairNow', b=>b.onclick=async ()=>{
+  b.disabled=true
+  const old=b.innerHTML
+  b.innerHTML=`<span class="spin">${ICONS.refresh}</span>巡检中`
+  try{
+    const j=await post('api/repair_now',{})
+    const list=Array.isArray(j.results)?j.results:[]
+    if(!list.length) toast('巡检完成：没有需要补推的账号')
+    else{
+      const ok=list.filter(r=>r.ok).length
+      toast(`巡检完成：补推 ${ok}/${list.length}${ok<list.length?'，失败项见动态':''}`, ok===list.length)
+    }
+    if(j.state){ STATE=j.state; render(STATE) }
+  }catch(e){ toast('巡检失败：'+e.message,false) }
+  b.disabled=false; b.innerHTML=old
+})
+set('btnHistMore', b => b.onclick = () => { historyLimit = Math.min(200, historyLimit + 60); load() })
+/* ---------- 批量推送 ---------- */
+function updateBulk(){
+  const bar=$('bulkBar'); if(bar) bar.classList.toggle('show', selected.size>0)
+  set('bulkCount', e=>e.textContent='已选 '+selected.size)
+  const boxes=[...document.querySelectorAll('.rowCheck:not(:disabled)')]
+  set('checkAll', cb=>{
+    cb.checked = boxes.length>0 && boxes.every(c=>c.checked)
+    cb.indeterminate = !cb.checked && selected.size>0
+  })
+}
+set('checkAll', cb=>cb.onchange=()=>{
+  document.querySelectorAll('.rowCheck:not(:disabled)').forEach(c=>{
+    c.checked = cb.checked
+    cb.checked ? selected.add(c.dataset.key) : selected.delete(c.dataset.key)
+  })
+  updateBulk()
+})
+set('bulkClear', b=>b.onclick=()=>{
+  selected.clear()
+  document.querySelectorAll('.rowCheck').forEach(c=>{ c.checked=false })
+  updateBulk()
+})
+set('bulkPush', b=>b.onclick=async()=>{
+  if(!selected.size) return
+  b.disabled=true
+  const old=b.innerHTML
+  b.innerHTML=`<span class="spin">${ICONS.refresh}</span>推送中`
+  let ok=0, fail=0
+  for(const key of [...selected]){
+    const [self,proto]=key.split(':').map(Number)
+    try{ await post('api/push',{self_id:self,protocol_id:proto}); ok++ }
+    catch{ fail++ }
+    await new Promise(r=>setTimeout(r,350))
+  }
+  b.disabled=false; b.innerHTML=old
+  toast('批量推送完成：成功 '+ok+(fail?' · 失败 '+fail:''), fail===0)
+  load()
+})
+/* ---------- 快捷键：/ 搜索，r 刷新 ---------- */
+document.addEventListener('keydown', e=>{
+  const tag=(document.activeElement?.tagName||'').toLowerCase()
+  if(tag==='input'||tag==='textarea'||tag==='select') return
+  if($('drawer')?.classList.contains('show')) return
+  if(e.key==='/'){ e.preventDefault(); showTab('accounts'); const s=$('search'); if(s){ s.focus(); s.select() } }
+  else if(e.key==='r'&&!e.metaKey&&!e.ctrlKey&&!e.altKey){ e.preventDefault(); load() }
+})
+set('dwClose', b => b.onclick = closeDrawer)
+set('drawerMask', m => m.onclick = closeDrawer)
+// 抽屉键盘行为：ESC 关闭，Tab 在抽屉内循环（焦点陷阱）
+document.addEventListener('keydown', e => {
+  const d = $('drawer')
+  if (!d || !d.classList.contains('show')) return
+  if (e.key === 'Escape') { closeDrawer(); return }
+  if (e.key !== 'Tab') return
+  const items = [...d.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')]
+    .filter(el => !el.disabled && el.offsetParent !== null)
+  if (!items.length) return
+  const first = items[0], last = items[items.length - 1]
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+})
+
+function toast(msg, ok=true){
+  const t=$('toast'); if(!t) return
+  t.classList.remove('ok','err'); void t.offsetWidth
+  t.className='show '+(ok?'ok':'err')
+  set('toastIcon', e => e.innerHTML = ok?ICONS.ok:ICONS.err)
+  set('toastMsg', e => e.textContent = msg)
+  clearTimeout(t._h); t._h=setTimeout(()=>t.className='',2800)
+}
+
+async function post(path, body){
+  const res=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})})
+  const text=await res.text()
+  let j
+  try{j=JSON.parse(text)}catch{throw new Error(`响应非 JSON（HTTP ${res.status}）`)}
+  if(!res.ok||j.error) throw new Error(j.error||('HTTP '+res.status))
+  if(j.state && !BUSY) render(j.state)
+  return j
+}
+
+const panelHits = uin => (STATE?.panels||[]).map((p,i)=>({p,i,hit:(p.accounts||[]).find(a=>a.uin===String(uin))})).filter(x=>x.hit)
+
+/** 按 QQ 分组账号实例（供账号表与诊断复用）。 */
+function collectGroups(s){
+  const groups=new Map()
+  for(const a of s.accounts||[]){
+    const g=groups.get(a.self_id)||{self_id:a.self_id,nickname:a.nickname||'',remark:a.remark||'',instances:[],codeAge:a.code_age_ms||null}
+    if(!g.nickname&&a.nickname) g.nickname=a.nickname
+    if(!g.remark&&a.remark) g.remark=a.remark
+    if(a.code_age_ms&&!g.codeAge) g.codeAge=a.code_age_ms
+    g.instances.push(a)
+    groups.set(a.self_id,g)
+  }
+  return [...groups.values()]
+}
+
+/** 手机端账号卡片：与账号表同源数据，窄屏由 CSS 切换展示。 */
+function renderAccountCards(groups, s, emptyMsg){
+  const el=$('accountCards'); if(!el) return
+  let html
+  if(!s.accounts.length){
+    html=`<div class="empty">${ICONS.off}<div>暂无 Android 账号<br><span class="faint">请在萌卡框架登录手机 / 平板协议账号</span></div></div>`
+  } else if(!groups.length){
+    html=`<div class="empty">${ICONS.off}<div>${emptyMsg}</div></div>`
+  } else {
+  html=groups.map(g=>{
+    const insts=g.instances.slice().sort((x,y)=>((y.platform||'').includes('android')-(x.platform||'').includes('android'))||(x.protocol_id-y.protocol_id))
+    const onlineN=insts.filter(a=>a.online).length
+    const hits=panelHits(g.self_id)
+    const head=`<div class="acc-head" data-self="${g.self_id}">
+      <div class="avatar">${esc((g.nickname||String(g.self_id)).slice(0,1).toUpperCase())}</div>
+      <div class="acc-id">
+        <div class="nick" title="${esc(g.nickname||'')}">${esc(g.nickname||'未命名')}<span class="pill ${onlineN?'g':'n'}">${onlineN}/${insts.length} 在线</span></div>
+        <div class="qq qq-copy" data-qq="${g.self_id}" title="点击复制 QQ">${g.self_id}</div>
+        <span class="remark" data-self="${g.self_id}">
+          <span class="txt">${g.remark?esc(g.remark):'<span class="add">添加备注</span>'}</span>
+          <span class="edit" title="编辑备注">${ICONS.pencil}</span>
+        </span>
+      </div>
+    </div>`
+    const body=insts.map(a=>{
+      const plat=(a.platform||'').toLowerCase(), isAndroid=plat.includes('android')
+      const codePills=hits.length
+        ? hits.map(h=>`<span class="pill g" title="${esc(h.p.label)}">${esc(h.p.label)} · ${esc(h.hit.code||'✓')}</span>`).join('')
+        : (a.online?'<span class="pill r">未推送</span>':'<span class="pill n">离线</span>')
+      const pushBtn=a.online&&isAndroid
+        ? `<button class="mini-btn btnPush" data-self="${a.self_id}" data-proto="${a.protocol_id}" data-nick="${esc(a.nickname||'')}">${ICONS.upload}推送</button>`
+        : (a.online?'<span class="faint">协议不支持</span>':'')
+      const cardKey=`${a.self_id}:${a.protocol_id}`
+      const canSelect=a.online&&isAndroid
+      return `<div class="acc-inst">
+        <div class="acc-row">
+          ${canSelect?`<input type="checkbox" class="rowCheck c-check" data-key="${cardKey}" ${selected.has(cardKey)?'checked':''} style="width:14px;height:14px;accent-color:var(--accent)">`:''}
+          <span class="pill ${a.online?(isAndroid?'b':'n'):'n'}" title="${esc(a.protocol_version||a.platform||'')}">${isAndroid?ICONS.android:ICONS.pc}${esc(a.platform||'未知')} #${a.protocol_id}</span>
+          <span class="pill ${a.online?'g':'r'}"><span class="dot"></span>${a.online?'在线':'离线'}</span>
+          <span class="acc-meta">Lv.${esc(a.level??'–')} · 友 ${esc(a.friend_count??'–')} / 群 ${esc(a.group_count??'–')}</span>
+        </div>
+        <div class="acc-row">${codePills}${pushBtn}</div>
+      </div>`
+    }).join('')
+    return `<div class="acc-card ${onlineN?'online':''}">${head}${body}</div>`
+  }).join('')
+  }
+  if(!setHTML('accountCards', html)) return
+  el.querySelectorAll('.rowCheck').forEach(cb=>cb.onchange=()=>{ cb.checked?selected.add(cb.dataset.key):selected.delete(cb.dataset.key); updateBulk() })
+  el.querySelectorAll('.btnPush').forEach(b=>b.onclick=()=>pushOne(b))
+  el.querySelectorAll('.acc-head').forEach(h=>h.onclick=()=>openAccount(h.dataset.self))
+  el.querySelectorAll('.remark').forEach(initRemark)
+  el.querySelectorAll('.qq-copy').forEach(q=>q.onclick=async()=>{
+    try{ await navigator.clipboard.writeText(q.dataset.qq); toast('已复制 QQ：'+q.dataset.qq) }
+    catch{ toast('复制失败，请手动选择复制',false) }
+  })
+}
+
+/** 账号详情抽屉：账号信息 / 面板接入 / 协议实例 / 相关动态。 */
+function openAccount(selfId){
+  const s=STATE; if(!s) return
+  const g=collectGroups(s).find(x=>String(x.self_id)===String(selfId)); if(!g) return
+  const insts=g.instances
+  const onlineN=insts.filter(a=>a.online).length
+  $('dwAvatar').textContent=(g.nickname||String(g.self_id)).slice(0,1).toUpperCase()
+  $('dwNick').textContent=g.nickname||'未命名'
+  $('dwQQ').textContent=g.self_id
+
+  const android=g.instances.find(a=>(a.platform||'').toLowerCase().includes('android'))
+  const panels=Array.isArray(s.panels)?s.panels:[]
+  const panelRows=panels.length?panels.map((p,i)=>{
+    const hit=(p.accounts||[]).find(a=>String(a.qq??a.uin??'')===String(g.self_id))
+    const canPush=Boolean(android&&android.online)
+    const pushBtn=canPush?`<button class="mini-btn" data-dwpush="${i}" title="推送到该面板">${ICONS.upload}${hit?'重推':'推送'}</button>`:''
+    if(!hit) return `<div class="dw-item"><span>${esc(p.label)}</span><span class="pill n">未接入</span>${pushBtn}</div>`
+    const code=hit.code?String(hit.code):''
+    const short=code?code.slice(0,10)+'…':'—'
+    return `<div class="dw-item"><span>${esc(p.label)}</span>${hit.running?'<span class="pill g">运行中</span>':'<span class="pill y">已停止</span>'}<span class="faint" title="${esc(code)}">Code ${esc(short)}</span>${pushBtn}</div>`
+  }).join(''):'<div class="faint">尚未配置面板</div>'
+
+  const instRows=insts.map(a=>`<div class="dw-item">
+    <span>${esc(a.platform||'未知')} #${a.protocol_id}</span>
+    <span class="pill ${a.online?'g':'n'}">${a.online?'在线':'离线'}</span>
+    <span class="faint">Lv.${esc(a.level??'–')} · 友 ${esc(a.friend_count??'–')} / 群 ${esc(a.group_count??'–')}</span>
+  </div>`).join('')
+
+  const acts=(s.history||[]).filter(h=>String(h.message||'').includes(String(g.self_id))).slice(0,8)
+  const actRows=acts.length?acts.map(h=>{
+    const t=new Date(h.time||0).toLocaleTimeString('zh-CN',{hour12:false})
+    return `<div class="dw-item"><span class="tl-time">${t}</span><span style="flex:1;min-width:0;word-break:break-all">${esc(h.message)}</span></div>`
+  }).join(''):'<div class="faint">暂无相关动态</div>'
+
+  $('drawerBody').innerHTML=`
+    <div class="dw-sec"><h3>账号</h3>
+      <div class="dw-item"><span>在线实例</span><span class="faint">${onlineN}/${insts.length}</span></div>
+      <div class="dw-item" id="dwRemarkRow"><span>备注</span><span class="faint" id="dwRemarkText">${g.remark?esc(g.remark):'未设置'}</span>
+        <button class="mini-btn" id="dwRemarkEdit" type="button">${ICONS.pencil}编辑</button></div>
+    </div>
+    <div class="dw-sec"><h3>面板接入</h3>${panelRows}</div>
+    <div class="dw-sec"><h3>协议实例</h3>${instRows}</div>
+    <div class="dw-sec"><h3>相关动态</h3>${actRows}</div>`
+
+  // 抽屉内：单面板重推
+  $('drawerBody').querySelectorAll('[data-dwpush]').forEach(btn=>btn.onclick=async()=>{
+    if(!android) return
+    btn.disabled=true
+    const old=btn.innerHTML
+    btn.innerHTML=`<span class="spin">${ICONS.refresh}</span>推送中`
+    try{
+      await post('api/push',{self_id:Number(g.self_id),protocol_id:android.protocol_id,nickname:g.nickname||'',panel:Number(btn.dataset.dwpush)})
+      toast('已推送至该面板')
+      await load()
+      openAccount(selfId)
+    }catch(e){
+      toast('推送失败：'+e.message,false)
+      btn.disabled=false; btn.innerHTML=old
+    }
+  })
+  // 抽屉内：编辑备注
+  set('dwRemarkEdit', btn=>btn.onclick=()=>{
+    const row=$('dwRemarkRow'); if(!row) return
+    row.innerHTML=`<span>备注</span><span class="dw-remark-form">
+      <input id="dwRemarkInput" maxlength="20" value="${esc(g.remark||'')}" placeholder="最多 20 字">
+      <button class="mini-btn" id="dwRemarkSave" type="button">${ICONS.ok}</button>
+      <button class="mini-btn" id="dwRemarkCancel" type="button">${ICONS.err}</button></span>`
+    const input=$('dwRemarkInput'); if(!input) return
+    input.focus(); input.select()
+    const save=async()=>{
+      try{
+        const j=await post('api/remarks',{self_id:Number(g.self_id),remark:input.value.trim()})
+        if(j.state){ STATE=j.state; render(STATE) }
+        toast(input.value.trim()?'备注已保存':'备注已清除')
+        openAccount(selfId)
+      }catch(e){ toast('备注保存失败：'+e.message,false) }
+    }
+    set('dwRemarkSave', b=>b.onclick=save)
+    set('dwRemarkCancel', b=>b.onclick=()=>openAccount(selfId))
+    input.onkeydown=e=>{ e.stopPropagation(); if(e.key==='Enter') save(); if(e.key==='Escape') openAccount(selfId) }
+  })
+  $('drawerMask').classList.add('show')
+  document.body.classList.add('no-scroll')
+  drawerReturnFocus = document.activeElement
+  const d=$('drawer'); d.classList.add('show'); d.setAttribute('aria-hidden','false')
+  $('dwClose').focus({ preventScroll:true })
+}
+function closeDrawer(){
+  $('drawerMask').classList.remove('show')
+  document.body.classList.remove('no-scroll')
+  const d=$('drawer'); if(!d) return
+  d.classList.remove('show'); d.setAttribute('aria-hidden','true')
+  if (drawerReturnFocus && drawerReturnFocus.focus) drawerReturnFocus.focus({ preventScroll:true })
+  drawerReturnFocus = null
+}
+
+function skeleton(){
+  set('accounts', el => el.innerHTML = Array.from({length:3},()=>
+    `<tr class="skeleton"><td><span class="bar" style="width:120px"></span></td><td><span class="bar" style="width:70px"></span></td><td><span class="bar" style="width:60px"></span></td><td><span class="bar" style="width:50px"></span></td><td><span class="bar" style="width:34px"></span></td><td><span class="bar" style="width:56px"></span></td><td><span class="bar" style="width:70px"></span></td><td><span class="bar" style="width:96px"></span></td></tr>`).join(''))
+  // 手机端卡片骨架，避免首屏空白
+  set('accountCards', el => el.innerHTML = Array.from({length:2},()=>
+    `<div class="acc-card"><div class="acc-head"><span class="sk-bar" style="width:32px;height:32px;border-radius:10px"></span>
+      <div style="flex:1"><span class="sk-bar" style="width:96px"></span><div style="margin-top:7px"><span class="sk-bar" style="width:64px"></span></div></div></div>
+      <div class="acc-inst"><span class="sk-bar" style="width:140px"></span><span class="sk-bar" style="width:90px"></span></div></div>`).join(''))
+}
+
+function numUp(id,target){
+  const el=$(id); if(!el) return
+  const from=Number(el.dataset.v||0)
+  if(from===target){el.textContent=target;return}
+  el.dataset.v=target
+  const t0=performance.now(),dur=350
+  const step=t=>{const p=Math.min(1,(t-t0)/dur),v=Math.round(from+(target-from)*(1-Math.pow(1-p,3)));el.textContent=v;if(p<1)requestAnimationFrame(step)}
+  requestAnimationFrame(step)
+}
+
+function renderDonut(online,total){
+  const C=2*Math.PI*17
+  set('donutVal', e => e.style.strokeDashoffset = String(C*(1-(total?online/total:0))))
+  set('donutPct', e => e.textContent = total?Math.round(online/total*100)+'%':'–')
+}
+
+function render(s){
+  try {
+    STATE=s
+    set('ver', e => e.textContent='v'+s.version)
+    set('fInstanceId', e => e.textContent=s.instance_id||'–')
+    set('fDataPath', e => e.textContent=s.data_path||'–')
+    set('updatedAt', e => e.textContent='更新于 '+new Date().toLocaleTimeString('zh-CN',{hour12:false}))
+    set('pushStat', e => {
+      const st=s.stats||{}, ok=st.todayOk||0, fail=st.todayFail||0
+      if(!ok&&!fail){ e.style.display='none'; return }
+      e.style.display=''
+      e.textContent='今日推送 '+ok+' 成功'+(fail?' · '+fail+' 失败':'')
+      e.classList.toggle('has-err', fail>0)
+    })
+
+    const cfg=s.config||{}
+    const panels=Array.isArray(s.panels)?s.panels:[]
+    const active=cfg.activePanel||0
+    set('farmState', el => {
+      if(!cfg.enabled) el.innerHTML='<span class="dot off"></span>推送未启用'
+      else if(!panels.length) el.innerHTML='<span class="dot off"></span>无面板'
+      else if(panels.some(p=>p.ok)) el.innerHTML=`<span class="dot on"></span>${panels.filter(p=>p.ok).length}/${panels.length} 面板正常`
+      else el.innerHTML='<span class="dot off"></span>面板均不可达'
+    })
+
+    const online=s.accounts.filter(a=>a.online).length
+    // 未配置面板引导：禁用「推送全部」并提示去添加
+    const hasPanelCfg=(cfg.panels||[]).length>0
+    set('noPanelNotice', el => el.style.display = hasPanelCfg ? 'none' : 'flex')
+    set('btnPushAll', b => { b.disabled = !hasPanelCfg })
+    numUp('stAccounts',s.accounts.length)
+    numUp('stOnline',online)
+    numUp('stFarm',panels.reduce((n,p)=>n+(p.accounts?.length||0),0))
+    set('stRefresh', e => e.textContent=cfg.enabled?(cfg.refreshMinutes||0):'–')
+    renderDonut(online,s.accounts.length)
+
+    /* 账号表：按 QQ 分组，同 QQ 的多协议实例共用账号单元格 */
+    const kw=(($('search')?.value)||'').trim().toLowerCase()
+    let groupList=collectGroups(s).filter(g=>
+      !kw||String(g.self_id).includes(kw)||g.nickname.toLowerCase().includes(kw)||g.remark.toLowerCase().includes(kw)
+      ||g.instances.some(a=>(a.platform||'').toLowerCase().includes(kw)))
+    groupList.sort((x,y)=>{
+      const xo=x.instances.some(a=>a.online),yo=y.instances.some(a=>a.online)
+      return (yo-xo)||(x.self_id-y.self_id)
+    })
+    if(accFilter==='online'){
+      groupList=groupList.map(g=>({...g,instances:g.instances.filter(a=>a.online)})).filter(g=>g.instances.length)
+    }
+    const emptyMsg=accFilter==='online'
+      ? (kw?`没有匹配「${kw}」的在线账号`:'当前没有在线账号')
+      : `没有匹配「${kw}」的账号`
+    const accHtml=(()=>{
+      if(!s.accounts.length) return `<tr><td colspan="8"><div class="empty">${ICONS.off}<div>暂无 Android 账号<br><span class="faint">请在萌卡框架登录手机 / 平板协议账号</span></div></div></td></tr>`
+      if(!groupList.length) return `<tr><td colspan="8"><div class="empty">${ICONS.off}<div>${emptyMsg}</div></div></td></tr>`
+      return groupList.map(g=>{
+        const insts=g.instances.slice().sort((x,y)=>((y.platform||'').includes('android')-(x.platform||'').includes('android'))||(x.protocol_id-y.protocol_id))
+        const onlineN=insts.filter(a=>a.online).length
+        const hits=panelHits(g.self_id)
+        const rows=insts.map((a,idx)=>{
+          const plat=(a.platform||'').toLowerCase(), isAndroid=plat.includes('android')
+          const platPill=`<span class="pill ${a.online?(isAndroid?'b':'n'):'n'}" title="${esc(a.protocol_version||a.platform||'')}">${isAndroid?ICONS.android:ICONS.pc}${esc(a.platform||'未知')} #${a.protocol_id}</span>`
+          const hitTitle=hits.map(h=>`${h.p.label} · ${h.hit.code||'✓'}`).join('\n')
+          const moreTitle=hits.slice(1).map(h=>h.p.label).join('、')
+          const farmCell=hits.length
+            ? `<span class="pill g" title="${esc(hitTitle)}">${esc(hits[0].p.label)} · ${esc(hits[0].hit.code||'✓')}</span>`
+              + (hits.length>1 ? ' <span class="pill b" title="' + esc(moreTitle) + '">+' + (hits.length-1) + '</span>' : '')
+            :(!a.online?'<span class="pill n">离线</span>':(plat&&!isAndroid?'<span class="pill y">协议不支持</span>':'<span class="pill r">未推送</span>'))
+          const action=a.online
+            ?(isAndroid
+              ?`<button class="mini-btn btnPush" data-self="${a.self_id}" data-proto="${a.protocol_id}" data-nick="${esc(a.nickname||'')}" title="推送到当前面板">${ICONS.upload}推送</button>`
+              :'<span class="faint" title="仅 Android 协议支持农场 Code">协议不支持</span>')
+            :'<span class="faint">—</span>'
+          const rowKey=`${a.self_id}:${a.protocol_id}`
+          const canSelect=a.online&&isAndroid
+          const checkCell=`<td class="c-check"><input type="checkbox" class="rowCheck" data-key="${rowKey}" ${selected.has(rowKey)?'checked':''} ${canSelect?'':'disabled'} title="${canSelect?'选择推送':'离线或非安卓协议不可选'}"></td>`
+          const accountCell=idx===0?`<td rowspan="${insts.length}"><div class="who" data-self="${g.self_id}" title="点击查看账号详情">
+              <div class="avatar">${esc((g.nickname||String(g.self_id)).slice(0,1).toUpperCase())}</div>
+              <div><div class="nick" title="${esc(g.nickname||'')}">${esc(g.nickname||'未命名')} <span class="agg"><span class="pill ${onlineN?'g':'n'}">${onlineN}/${insts.length} 在线</span></span></div>
+              <div class="qq qq-copy" data-qq="${g.self_id}" title="点击复制 QQ">${g.self_id}</div>
+              <span class="remark" data-self="${g.self_id}">
+                <span class="txt">${g.remark?esc(g.remark):'<span class="add">添加备注</span>'}</span>
+                <span class="edit" title="编辑备注">${ICONS.pencil}</span>
+              </span>
+              ${g.codeAge?(()=>{
+                const h=g.codeAge/3600000
+                const cls=h<12?'g':(h<48?'y':'r')
+                const txt=h<1?Math.max(1,Math.round(h*60))+' 分钟':h.toFixed(1)+' 小时'
+                return `<span class="code-age"><span class="pill ${cls}">Code ${txt}</span></span>`
+              })():''}
+            </div></div></td>`:''
+          return `<tr class="${idx===0?'group-start':''} ${onlineN?'group-online':''}">${checkCell}${accountCell}
+            <td class="c-proto">${platPill}</td>
+            <td><span class="pill ${a.online?'g':'r'}"><span class="dot"></span>${a.online?'在线':'离线'}</span></td>
+            <td class="c-level">${esc(a.level??'–')}</td>
+            <td class="c-social">${esc(a.friend_count??'–')} / ${esc(a.group_count??'–')}</td>
+            <td>${farmCell}</td>
+            <td>${action}</td>
+          </tr>`
+        }).join('')
+        return rows
+      }).join('')
+    })()
+    if(setHTML('accounts', accHtml)){
+      const tb=$('accounts')
+      tb.querySelectorAll('.rowCheck').forEach(cb=>cb.onchange=()=>{ cb.checked?selected.add(cb.dataset.key):selected.delete(cb.dataset.key); updateBulk() })
+      tb.querySelectorAll('.btnPush').forEach(b=>b.onclick=()=>pushOne(b))
+      tb.querySelectorAll('.who').forEach(w=>w.onclick=e=>{ if(e.target.closest('.remark')) return; openAccount(w.dataset.self) })
+      tb.querySelectorAll('.remark').forEach(initRemark)
+      tb.querySelectorAll('.qq-copy').forEach(q=>q.onclick=async()=>{
+        try{ await navigator.clipboard.writeText(q.dataset.qq); toast('已复制 QQ：'+q.dataset.qq) }
+        catch{ toast('复制失败，请手动选择复制',false) }
+      })
+    }
+
+    /* 手机端卡片列表（与表格同源，≤640px 由 CSS 切换） */
+    renderAccountCards(groupList, s, emptyMsg)
+    updateBulk()
+
+    /* 动态流 */
+    const hist = Array.isArray(s.history) ? s.history : []
+    set('tabCntAccounts', e => e.textContent = s.accounts.length)
+    set('tabCntPanels', e => e.textContent = panels.length ? `${panels.filter(p=>p.ok).length}/${panels.length}` : '0')
+    set('tabCntActivity', e => e.textContent = hist.length)
+    set('histMore', el => el.style.display = (hist.length >= historyLimit && historyLimit < 200) ? 'flex' : 'none')
+    const timelineHtml=(()=>{
+      const HIST_GROUPS={push:['push'],account:['online','offline'],panel:['panel']}
+      const list=histFilter==='all'?hist:hist.filter(h=>(HIST_GROUPS[histFilter]||[]).includes(h.type))
+      if(!list.length) return '<div class="empty">'+ICONS.off+`<div>${histFilter==='all'?'暂无动态，等待推送或上下线事件':'该分类暂无动态'}</div></div>`
+      const TYPE_ICON={push:ICONS.upload,online:ICONS.ok,offline:ICONS.err,panel:ICONS.link}
+      const TYPE_CLS={push:'push',online:'online',offline:'offline',panel:'panel'}
+      const dayOf=t=>{
+        const d=new Date(t||0), now=new Date(), y=new Date(now)
+        y.setDate(now.getDate()-1)
+        if(d.toDateString()===now.toDateString()) return '今天'
+        if(d.toDateString()===y.toDateString()) return '昨天'
+        return `${d.getMonth()+1} 月 ${d.getDate()} 日`
+      }
+      let lastDay=''
+      return list.map(h=>{
+        const d=new Date(h.time||0)
+        const time=d.toLocaleTimeString('zh-CN',{hour12:false})
+        const day=dayOf(h.time)
+        const sep=day!==lastDay?`<div class="tl-day">${day}</div>`:''
+        lastDay=day
+        return `${sep}<div class="tl-item">
+          <div class="tl-ico ${TYPE_CLS[h.type]||'push'}">${TYPE_ICON[h.type]||ICONS.upload}</div>
+          <div class="tl-body"><div class="tl-msg">${esc(h.message)}</div><div class="tl-time">${time}</div></div>
+        </div>`
+      }).join('')
+    })()
+    setHTML('timeline', timelineHtml)
+
+    /* 面板列表 */
+    renderPanels(s)
+
+    /* 诊断 */
+    renderDiagnosis(s)
+
+    /* 设置 */
+    set('f_enabled', e => e.checked=!!cfg.enabled)
+    set('f_pushOnLogin', e => e.checked=!!cfg.pushOnLogin)
+    set('f_refreshMinutes', e => e.value=cfg.refreshMinutes??0)
+    set('f_staleHours', e => e.value=cfg.staleHours??0)
+    set('f_autoRepair', e => e.checked=!!cfg.autoRepair)
+    set('f_repairMinutes', e => e.value=cfg.repairMinutes??30)
+    set('cfgSummary', e => e.textContent=cfg.enabled
+      ?`已启用 · ${panels.filter(p=>p.ok).length}/${panels.length} 面板正常 · 每${cfg.refreshMinutes||0}分钟刷新${cfg.staleHours>0?' · 保鲜 '+cfg.staleHours+'h':''}`
+      :'未启用')
+    set('nextRun', e=>{
+      const sc=s.schedule||{}
+      const fmt=t=>new Date(t).toLocaleTimeString('zh-CN',{hour12:false})
+      const parts=[]
+      if(sc.nextRefreshAt) parts.push('下次自动刷新 '+fmt(sc.nextRefreshAt))
+      if(sc.nextStaleAt) parts.push('下次保鲜检查 '+fmt(sc.nextStaleAt))
+      if(sc.nextRepairAt) parts.push('下次自动巡检 '+fmt(sc.nextRepairAt))
+      e.textContent = parts.length ? parts.join(' · ') : '定时任务未启用（刷新与保鲜均为 0）'
+    })
+  } catch(e){ console.warn('render 失败（已忽略）：', e) }
+}
+
+/* ---------- 面板管理 ---------- */
+let editingPanel = -1 // -1 关闭，-2 新增
+
+/** 诊断：萌卡实例 vs 面板账号对照（未接入 / Code 超时 / 面板账号已停止）。 */
+function renderDiagnosis(s){
+  const el=$('diagList'); if(!el) return
+  const staleH=Number(s.config?.staleHours)>0?Number(s.config.staleHours):48
+  const groups=collectGroups(s)
+  const issues=[]
+  for(const g of groups){
+    const android=g.instances.find(a=>(a.platform||'').toLowerCase().includes('android'))
+    if(!android) continue
+    const hit=panelHits(g.self_id).find(h=>h.hit)
+    if(android.online&&!hit) issues.push({uin:g.self_id,proto:android.protocol_id,type:'push',label:'萌卡在线但未接入面板'})
+    else if(hit&&android.online&&g.codeAge>staleH*3600000) issues.push({uin:g.self_id,proto:android.protocol_id,type:'push',label:`Code 已 ${(g.codeAge/3600000).toFixed(0)} 小时未更新`})
+  }
+  // 面板内已停止的账号：萌卡有在线安卓实例的可用「重新推送」恢复，否则只能面板手动处理
+  for(const p of (s.panels||[])){
+    if(!p.ok) continue
+    for(const a of (p.accounts||[])){
+      if(a.running!==false) continue
+      const g=groups.find(x=>String(x.self_id)===String(a.uin))
+      const android=g?.instances.find(i=>(i.platform||'').toLowerCase().includes('android')&&i.online)
+      issues.push(android
+        ?{uin:a.uin,proto:android.protocol_id,type:'push',label:`面板「${p.label}」账号已停止`}
+        :{uin:a.uin,proto:null,type:'manual',label:`面板「${p.label}」账号已停止，萌卡无在线安卓实例`})
+    }
+  }
+  s._issues=issues
+  set('diagCount', e => { e.textContent=String(issues.length); e.style.display=issues.length?'':'none' })
+  set('btnDiagAll', b => b.style.display=issues.some(it=>it.proto!=null)?'':'none')
+  if(!issues.length){setHTML('diagList','<div class="empty" style="padding:16px">'+ICONS.ok+'<div>一切正常，无待处理项</div></div>');return}
+  const diagHtml=issues.map(it=>`<div class="diag-item">
+      <span class="pill ${it.type==='manual'?'n':'y'}">${esc(it.label)}</span>
+      <span class="qq qq-copy" data-qq="${it.uin}" title="点击复制 QQ">${it.uin}</span>
+      ${it.type==='manual'
+        ?'<span class="faint" style="margin-left:auto">需在面板手动处理</span>'
+        :`<button class="mini-btn diagAct" style="margin-left:auto" data-self="${it.uin}" data-proto="${it.proto}">${ICONS.upload}立即推送</button>`}
+    </div>`).join('')
+  if(!setHTML('diagList', diagHtml)) return
+  el.querySelectorAll('.qq-copy').forEach(q=>q.onclick=async()=>{try{await navigator.clipboard.writeText(q.dataset.qq);toast('已复制 QQ')}catch{}})
+  el.querySelectorAll('.diagAct').forEach(b=>b.onclick=async()=>{
+    b.disabled=true
+    try{
+      await post('api/push',{self_id:Number(b.dataset.self),protocol_id:Number(b.dataset.proto),nickname:''})
+      toast('已推送')
+    }catch(e){toast('操作失败：'+e.message,false)}
+    b.disabled=false; load()
+  })
+}
+set('btnDiagAll', b => b.onclick=async ()=>{
+  const issues=(STATE?._issues||[]).filter(it=>it.proto!=null)
+  if(!issues.length) return
+  b.disabled=true
+  let ok=0
+  for(const it of issues){
+    try{
+      await post('api/push',{self_id:it.uin,protocol_id:it.proto,nickname:''})
+      ok++
+    }catch{ /* 单项失败继续下一项 */ }
+    await new Promise(r=>setTimeout(r,800))
+  }
+  b.disabled=false
+  toast(`一键处理完成：${ok}/${issues.length}`, ok===issues.length)
+  load()
+})
+
+function renderPanels(s){
+  const el=$('panelList'); if(!el) return
+  const cfg=s.config||{}, panels=Array.isArray(s.panels)?s.panels:[]
+  const meta=Array.isArray(cfg.panels)?cfg.panels:[]
+  const active=cfg.activePanel||0
+  if(!panels.length && !meta.length){setHTML('panelList','<div class="empty">'+ICONS.off+'<div>还没有面板，点右上角「添加面板」</div></div>');return}
+  // 以实时状态 panels 为准，禁用推送时回退到配置元数据
+  const rows=panels.length?panels:meta.map((m,i)=>({...m,ok:false,error:'推送未启用',accounts:[]}))
+  const html=rows.map((p,i)=>{
+    const isActive=i===active
+    const status=p.ok
+      ?`<span class="status-chip ok"><span class="dot"></span>正常 · ${p.ms}ms</span>`
+      :`<span class="status-chip err" title="${esc(p.error||'不可达')}"><span class="dot"></span>${esc((p.error||'不可达').slice(0,20))}</span>`
+    const accChips=(p.accounts||[]).slice(0,8).map(a=>
+      `<span class="pill ${a.running===false?'y':(a.code?'g':'n')}" title="${esc(a.name||a.uin)}${a.running===false?'（已停止）':(a.running?'（运行中）':'')}">${esc(a.uin)} · ${esc(a.code||'✓')}</span>`).join('')
+    const accs=p.accounts||[], stopped=accs.filter(a=>a.running===false).length
+    const accSummary=`<span class="pill ${stopped?'y':'n'}" title="面板内账号${stopped?`，其中 ${stopped} 个已停止`:''}">${accs.length} 账号${stopped?` · ${stopped} 停止`:''}</span>`
+    return `<div class="panel-card ${isActive?'active':''}">
+      <div class="panel-top">
+        <button class="star ${isActive?'on':''}" data-act="active" data-i="${i}" title="${isActive?'当前推送目标':'设为推送目标'}">${ICONS.star}</button>
+        <div style="flex:1;min-width:0">
+          <div class="panel-name">${esc(p.label||('FARM'+(i+1)))}${p.hasCode===false?' <span class="faint" style="font-size:11px">（未设 Code）</span>':''}</div>
+          <div class="panel-url" data-url="${esc(p.baseUrl||'')}" title="点击复制面板地址">${esc(p.baseUrl||'')}</div>
+        </div>
+        ${isActive?`<span class="pill g">${ICONS.star}推送目标</span>`:''}
+      </div>
+      <div class="panel-meta">
+        ${status}
+        ${accSummary}
+      </div>
+      ${accChips?`<div class="panel-accs">${accChips}</div>`:''}
+      <div class="panel-actions">
+        <button class="mini-btn" data-act="test" data-i="${i}" title="测试面板连通性（登录 + 拉取账号）">${ICONS.link}测试</button>
+        <button class="mini-btn" data-act="push" data-i="${i}" title="推送全部在线安卓账号到此面板">${ICONS.upload}推送到此</button>
+        <a class="mini-btn" href="${esc(p.baseUrl)}" target="_blank" rel="noopener" title="打开面板">${ICONS.link}打开</a>
+        <button class="mini-btn" data-act="edit" data-i="${i}" title="编辑面板">${ICONS.edit}编辑</button>
+        <button class="mini-btn" data-act="del" data-i="${i}" title="删除面板">${ICONS.trash}删除</button>
+      </div>
+    </div>`
+  }).join('')
+  if(!setHTML('panelList', html)) return
+  el.querySelectorAll('button[data-act]').forEach(b=>b.onclick=()=>panelAction(b.dataset.act,Number(b.dataset.i)))
+  el.querySelectorAll('.panel-url').forEach(u=>u.onclick=async()=>{
+    try{ await navigator.clipboard.writeText(u.dataset.url||''); toast('面板地址已复制') }
+    catch{ toast('复制失败，请手动选择',false) }
+  })
+}
+
+async function savePanels(panels, activePanel){
+  return post('api/config',{farm:{enabled:STATE.config.enabled,pushOnLogin:STATE.config.pushOnLogin,refreshMinutes:STATE.config.refreshMinutes,panels,activePanel}})
+}
+async function panelAction(act, i){
+  const meta=STATE?.config?.panels||[], live=STATE?.panels||[]
+  if(act==='active'){ await savePanels(meta,i); toast('已切换推送目标') }
+  if(act==='del'){
+    if(meta.length<=1) return toast('至少保留 1 个面板',false)
+    const p=meta[i]; if(!confirm(`删除面板「${p.label}」？`)) return
+    const next=meta.filter((_,x)=>x!==i)
+    await savePanels(next,Math.min(STATE.config.activePanel,next.length-1)); toast('面板已删除')
+  }
+  if(act==='test'){
+    const b=document.querySelector(`button[data-act="test"][data-i="${i}"]`)
+    if(b){b.disabled=true;b.innerHTML=`<span class="spin">${ICONS.refresh}</span>测试中`}
+    try{
+      const j=await post('api/test_panel',{panel:i})
+      if(j.ok) toast(`「${j.result.panel}」连通正常：${j.result.ms}ms · ${j.result.accounts} 个账号（运行 ${j.result.running}）`)
+      else toast(j.error||'连通测试失败',false)
+    }catch(e){toast('测试失败：'+e.message,false)}
+    finally{ if(b){b.disabled=false;b.innerHTML=ICONS.link+'测试'} }
+    load()
+  }
+  if(act==='push'){
+    const b=document.querySelector(`button[data-act="push"][data-i="${i}"]`)
+    if(b){b.disabled=true;b.innerHTML=`<span class="spin">${ICONS.refresh}</span>推送中`}
+    try{
+      const j=await post('api/push_all',{panel:i})
+      const ok=(j.results||[]).filter(r=>r.ok).length
+      toast(`推送至「${live[i]?.label||meta[i]?.label}」：${ok}/${(j.results||[]).length}`)
+    }catch(e){toast('推送失败：'+e.message,false)}
+  }
+  if(act==='edit'){
+    editingPanel=i
+    const p=meta[i]||{}
+    $('pf_label').value=p.label||''
+    $('pf_baseUrl').value=p.baseUrl||''
+    $('pf_accessCode').value=''
+    $('pf_accessCode').placeholder='留空保持原 Code 不变'
+    $('panelForm').classList.add('show')
+  }
+}
+
+set('btnAddPanel', b => b.onclick=()=>{
+  editingPanel=-2
+  for(const id of ['pf_label','pf_baseUrl','pf_accessCode']) set(id,e=>e.value='')
+  set('pf_accessCode', e => e.placeholder='该面板的访问 Code')
+  set('panelForm', e => e.classList.add('show'))
+})
+set('pfCancel', b => b.onclick=()=>set('panelForm', e => e.classList.remove('show')))
+set('pfSave', b => b.onclick=async ()=>{
+  const label=($('pf_label')?.value||'').trim(), baseUrl=($('pf_baseUrl')?.value||'').trim(), accessCode=($('pf_accessCode')?.value||'').trim()
+  if(!/^https?:\/\//.test(baseUrl)) return toast('地址需以 http:// 或 https:// 开头',false)
+  const meta=(STATE?.config?.panels||[]).map(p=>({...p}))
+  if(editingPanel===-2) meta.push({label:label||`FARM${meta.length+1}`,baseUrl,accessCode})
+  else if(meta[editingPanel]) Object.assign(meta[editingPanel],{label:label||meta[editingPanel].label,baseUrl,accessCode})
+  try{ await savePanels(meta,STATE.config.activePanel||0); set('panelForm',e=>e.classList.remove('show')); toast(editingPanel===-2?'面板已添加':'面板已更新') }
+  catch(e){ toast('保存失败：'+e.message,false) }
+})
+
+/* ---------- 备注行内编辑 ---------- */
+function initRemark(cell){
+  const selfId=cell.dataset.self
+  cell.querySelector('.edit').onclick=e=>{ e.stopPropagation(); open() }
+  const txt=cell.querySelector('.txt')
+  txt.style.cursor='text'
+  txt.onclick=e=>{ e.stopPropagation(); open() }
+  function open(){
+    if(cell.querySelector('input')) return
+    const current=txt.querySelector('.add')?'':txt.textContent
+    cell.innerHTML=`<input type="text" maxlength="20" value="${esc(current)}" placeholder="备注">
+      <span class="ok" title="保存">${ICONS.ok}</span><span class="no" title="取消">${ICONS.err}</span>`
+    const input=cell.querySelector('input')
+    input.focus(); input.select()
+    const done=async(save)=>{
+      const value=input.value.trim()
+      if(!save){ render(STATE); return }
+      try{ await post('api/remarks',{self_id:Number(selfId),remark:value}); toast(value?'备注已保存':'备注已清除') }
+      catch(e){ toast('备注保存失败：'+e.message,false); render(STATE) }
+    }
+    cell.querySelector('.ok').onclick=()=>done(true)
+    cell.querySelector('.no').onclick=()=>done(false)
+    input.onkeydown=e=>{if(e.key==='Enter')done(true);if(e.key==='Escape')done(false)}
+  }
+}
+
+async function pushOne(b){
+  if(BUSY) return toast('有操作进行中，请稍候',false)
+  BUSY=true;b.disabled=true
+  const old=b.innerHTML;b.innerHTML=`<span class="spin">${ICONS.refresh}</span>推送中`
+  try{
+    const j=await post('api/push',{self_id:Number(b.dataset.self),protocol_id:Number(b.dataset.proto),nickname:b.dataset.nick})
+    toast(j.result?.skipped?'Code 未变化，已跳过推送':(j.result.updated?'Code 已更新，农场会话重启中':'已新增账号并启动'))
+  }catch(e){toast('推送失败：'+e.message,false)}
+  BUSY=false;load()
+}
+
+async function load(){
+  try{
+    const res=await fetch('api/state?h='+historyLimit)
+    if(!res.ok) throw new Error('HTTP '+res.status)
+    const j=await res.json()
+    if(j.error) throw new Error(j.error)
+    set('accErr', e => e.textContent='')
+    render(j)
+  }catch(e){ set('accErr', el => el.textContent='加载失败：'+e.message+'（将自动重试）') }
+}
+setInterval(()=>{
+  SECONDS-=1
+  if(SECONDS<=0){SECONDS=15;load()}
+  set('countdown', e => e.textContent=BUSY?'推送中…':`${SECONDS}s 后刷新`)
+},1000)
+
+set('btnReload', b => b.onclick=()=>{set('accErr',e=>e.textContent='');load()})
+set('search', b => b.oninput=()=>STATE&&render(STATE))
+set('btnPushAll', b => b.onclick=async ()=>{
+  if(BUSY) return toast('有操作进行中，请稍候',false)
+  BUSY=true;b.disabled=true
+  const old=b.innerHTML;b.innerHTML=`<span class="spin">${ICONS.refresh}</span>推送中…`
+  try{
+    const j=await post('api/push_all',{})
+    const ok=(j.results||[]).filter(r=>r.ok).length
+    const fail=(j.results||[]).filter(r=>!r.ok).map(r=>`${r.self_id}：${r.error}`)
+    toast(fail.length?`成功 ${ok} 个；失败：${fail.join('；').slice(0,80)}`:`推送完成 ${ok}/${(j.results||[]).length}`,!fail.length)
+  }catch(e){toast('推送失败：'+e.message,false)}
+  BUSY=false;b.disabled=false;b.innerHTML=old
+})
+set('btnSave', b => b.onclick=async ()=>{
+  b.disabled=true
+  try{
+    await post('api/config',{farm:{
+      enabled:$('f_enabled')?.checked,
+      pushOnLogin:$('f_pushOnLogin')?.checked,
+      refreshMinutes:Number($('f_refreshMinutes')?.value)||0,
+      staleHours:Number($('f_staleHours')?.value)||0,
+      autoRepair:$('f_autoRepair')?.checked,
+      repairMinutes:Number($('f_repairMinutes')?.value)||30,
+    }})
+    toast('设置已保存，立即生效')
+  }catch(e){toast('保存失败：'+e.message,false)}
+  b.disabled=false
+})
+
+/* ---------- 导出诊断包（脱敏：不含面板访问 Code） ---------- */
+set('btnCfgExport', b=>b.onclick=async ()=>{
+  try{
+    const res=await fetch('api/config/export')
+    if(!res.ok) throw new Error('HTTP '+res.status)
+    const blob=await res.blob()
+    const url=URL.createObjectURL(blob)
+    const a=document.createElement('a'); a.href=url; a.download='qqfarm-bot-config.json'
+    document.body.appendChild(a); a.click(); a.remove()
+    setTimeout(()=>URL.revokeObjectURL(url),3000)
+    toast('配置已导出（不含访问 Code）')
+  }catch(e){ toast('导出失败：'+e.message,false) }
+})
+set('btnCfgImport', b=>b.onclick=()=>$('cfgFile')?.click())
+set('cfgFile', input=>input.onchange=async ()=>{
+  const file=input.files?.[0]; input.value=''
+  if(!file) return
+  try{
+    const data=JSON.parse(await file.text())
+    const panels=data?.farm?.panels
+    if(!Array.isArray(panels)||!panels.length) throw new Error('文件里没有有效面板')
+    if(!confirm(`导入配置将覆盖当前设置（${panels.length} 个面板；未带 Code 时按地址沿用现有值）。继续？`)) return
+    const j=await post('api/config/import',data)
+    if(j.state){ STATE=j.state; render(STATE) }
+    toast('配置已导入')
+  }catch(e){ toast('导入失败：'+e.message,false) }
+})
+set('btnExport', b => b.onclick=()=>{
+  if(!STATE) return toast('暂无数据，请稍候',false)
+  const cfg=STATE.config||{}
+  const data={
+    exported_at:new Date().toISOString(),
+    version:STATE.version,
+    instance_id:STATE.instance_id||'',
+    config:{
+      enabled:cfg.enabled, pushOnLogin:cfg.pushOnLogin,
+      refreshMinutes:cfg.refreshMinutes, staleHours:cfg.staleHours, activePanel:cfg.activePanel,
+      panels:(cfg.panels||[]).map(p=>({label:p.label,baseUrl:p.baseUrl,hasCode:p.hasCode})),
+    },
+    accounts:STATE.accounts||[],
+    panels:STATE.panels||[],
+    history:STATE.history||[],
+  }
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'})
+  const a=document.createElement('a')
+  const ts=new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')
+  a.href=URL.createObjectURL(blob)
+  a.download=`qqfarm-bot-diag-${ts}.json`
+  a.click()
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000)
+  toast('诊断包已导出')
+})
+
+/* ---------- 动态流筛选与清空 ---------- */
+document.querySelectorAll('#histFilters .hf-btn').forEach(btn => btn.onclick=()=>{
+  histFilter=btn.dataset.f||'all'
+  document.querySelectorAll('#histFilters .hf-btn').forEach(x=>x.classList.toggle('active',x===btn))
+  if(STATE) render(STATE)
+})
+set('btnHistClear', b => b.onclick=async ()=>{
+  if(!confirm('清空全部动态记录？（推送时间统计不受影响）')) return
+  try{ await post('api/history_clear',{}); toast('动态流已清空') }
+  catch(e){ toast('清空失败：'+e.message,false) }
+})
+
+skeleton()
+load()
+setInterval(load,15000)
+</script>
+</body>
+</html>
