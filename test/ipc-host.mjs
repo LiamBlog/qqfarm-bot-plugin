@@ -12,7 +12,8 @@ import http from 'node:http'
 const PKG = join(new URL('..', import.meta.url).pathname, 'dist/package-amd64')
 const ENTRY = join(PKG, 'bin/qqfarm-bot')
 const PLUGIN_ID = 'qqfarm-bot'
-const VERSION = '3.5.0'
+// 版本从构建产物清单读取，CI 用开发版本号也能跑
+const VERSION = JSON.parse(readFileSync(join(PKG, 'mengka-plugin.json'), 'utf8')).version
 const INSTANCE_ID = 'go-test-001'
 const FARM_ACCESS_CODE = 'farm-access-code'
 const FARM_SESSION_TOKEN = 'farm-session-token-abc'

@@ -1,5 +1,7 @@
 # 农场桥接助手（Go 单二进制版）
 
+[![build](https://github.com/LiamBlog/qqfarm-bot-plugin/actions/workflows/build.yml/badge.svg)](https://github.com/LiamBlog/qqfarm-bot-plugin/actions/workflows/build.yml)
+
 萌卡NT 托管 IPC 插件 `qqfarm-bot`，用 Go 重写核心，安装包从 40.6 MB 降到 2.8 MB，不再需要随包分发 Node 运行时。
 
 ## 版本记录
