@@ -326,6 +326,16 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 		a.bridge.ClearActivity()
 		jsonOut(200, map[string]any{"ok": true, "state": a.state(60)})
 
+	case r.URL.Path == "/api/logs" && r.Method == http.MethodGet:
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		if limit <= 0 {
+			limit = 200
+		}
+		if limit > logBufferSize {
+			limit = logBufferSize
+		}
+		jsonOut(200, map[string]any{"ok": true, "lines": RecentLogs(limit)})
+
 	case r.URL.Path == "/api/config/export" && r.Method == http.MethodGet:
 		farm := a.cfg.Get()
 		panels := []map[string]any{}

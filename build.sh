@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="${1:-3.5.0}"
+VERSION="${1:-3.6.0}"
 TARGET="${2:-all}"
 case "$TARGET" in
   amd64|arm64) ARCHES=("$TARGET") ;;

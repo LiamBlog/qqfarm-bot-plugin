@@ -236,6 +236,8 @@
   .search { background:var(--bg2);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:6px 11px;font-size:12.5px;width:190px;outline:none;transition:border-color .15s; }
   .search:focus { border-color:var(--violet); }
   .acc-filter { display:inline-flex;gap:5px;margin-left:auto; }
+  .sort-select { background:var(--bg2);border:1px solid var(--line);color:var(--muted);border-radius:9px;padding:5px 8px;font-size:12px;outline:none;cursor:pointer; }
+  .sort-select:hover { color:var(--text);border-color:var(--line2); }
   .chip { background:var(--card2);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:4px 12px;font-size:12px;cursor:pointer;transition:.15s; }
   .chip:hover { color:var(--text);border-color:var(--line2); }
   .chip.active { color:var(--accent);border-color:var(--accent);background:var(--accent-soft);font-weight:600; }
@@ -528,6 +530,11 @@
           <button class="chip active" data-filter="all">全部</button>
           <button class="chip" data-filter="online">仅在线</button>
         </div>
+        <select class="sort-select" id="accSort" title="账号排序">
+          <option value="online">在线优先</option>
+          <option value="level">等级最高</option>
+          <option value="code">Code 最早</option>
+        </select>
         <input class="search" id="search" type="text" placeholder="搜索 QQ / 昵称 / 备注…">
       </div>
       <div class="table-wrap">
@@ -630,6 +637,7 @@
         <button class="mini-btn" id="btnExport" type="button" title="导出状态快照（不含面板访问 Code），便于反馈问题">导出诊断包</button>
         <button class="mini-btn" id="btnCfgExport" type="button" title="导出推送配置（不含访问 Code）">导出配置</button>
         <button class="mini-btn" id="btnCfgImport" type="button" title="从 JSON 导入推送配置">导入配置</button>
+        <button class="mini-btn" id="btnLogs" type="button" title="导出最近 300 行运行日志，便于排查">导出日志</button>
         <input type="file" id="cfgFile" accept="application/json,.json" style="display:none">
         <span class="faint">包含版本、配置（脱敏）、账号、面板状态与动态记录</span>
       </div>
@@ -691,6 +699,7 @@ let SECONDS = 15
 let accFilter = 'all' // 账号筛选：all / online
 let historyLimit = 60 // 动态流条数（加载更多时 +60，最多 200）
 const selected = new Set() // 批量推送选中项：self_id:protocol_id
+let accSort = localStorage.getItem('mengka-acc-sort') || 'online' // 账号排序：online / level / code
 let histFilter = 'all' // 动态流筛选：all / push / account / panel
 
 /* ---------- 主题 ---------- */
@@ -775,6 +784,25 @@ function updateBulk(){
     cb.indeterminate = !cb.checked && selected.size>0
   })
 }
+set('accSort', sel=>sel.onchange=()=>{
+  accSort=sel.value
+  localStorage.setItem('mengka-acc-sort', accSort)
+  if(STATE) render(STATE)
+})
+set('btnLogs', b=>b.onclick=async ()=>{
+  try{
+    const res=await fetch('api/logs?limit=300')
+    if(!res.ok) throw new Error('HTTP '+res.status)
+    const j=await res.json()
+    const lines=Array.isArray(j.lines)?j.lines:[]
+    const blob=new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'})
+    const url=URL.createObjectURL(blob)
+    const a=document.createElement('a'); a.href=url; a.download='qqfarm-bot-logs.txt'
+    document.body.appendChild(a); a.click(); a.remove()
+    setTimeout(()=>URL.revokeObjectURL(url),3000)
+    toast('日志已导出（'+lines.length+' 行）')
+  }catch(e){ toast('导出日志失败：'+e.message,false) }
+})
 set('checkAll', cb=>cb.onchange=()=>{
   document.querySelectorAll('.rowCheck:not(:disabled)').forEach(c=>{
     c.checked = cb.checked
@@ -1083,10 +1111,19 @@ function render(s){
     let groupList=collectGroups(s).filter(g=>
       !kw||String(g.self_id).includes(kw)||g.nickname.toLowerCase().includes(kw)||g.remark.toLowerCase().includes(kw)
       ||g.instances.some(a=>(a.platform||'').toLowerCase().includes(kw)))
-    groupList.sort((x,y)=>{
-      const xo=x.instances.some(a=>a.online),yo=y.instances.some(a=>a.online)
-      return (yo-xo)||(x.self_id-y.self_id)
-    })
+    const maxLevel=g=>Math.max(...g.instances.map(a=>Number(a.level)||0))
+    if(accSort==='level'){
+      groupList.sort((x,y)=>maxLevel(y)-maxLevel(x)||x.self_id-y.self_id)
+    }else if(accSort==='code'){
+      const age=g=>Number.isFinite(Number(g.codeAge))?Number(g.codeAge):Number.MAX_SAFE_INTEGER
+      groupList.sort((x,y)=>age(x)-age(y)||x.self_id-y.self_id)
+    }else{
+      groupList.sort((x,y)=>{
+        const xo=x.instances.some(a=>a.online),yo=y.instances.some(a=>a.online)
+        return (yo-xo)||(x.self_id-y.self_id)
+      })
+    }
+    set('accSort', e=>{ e.value=accSort })
     if(accFilter==='online'){
       groupList=groupList.map(g=>({...g,instances:g.instances.filter(a=>a.online)})).filter(g=>g.instances.length)
     }

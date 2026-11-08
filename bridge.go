@@ -80,6 +80,10 @@ type Bridge struct {
 	nextStaleAt   int64
 	nextRepairAt  int64
 	repairing     atomic.Bool
+
+	pushingMu sync.Mutex
+	pushing   map[string]bool
+	retrying  map[string]bool
 }
 
 func newBridge(cfg *Config, ipc *IPC, dataDir string) *Bridge {
@@ -93,6 +97,8 @@ func newBridge(cfg *Config, ipc *IPC, dataDir string) *Bridge {
 		pushTimes:    map[string]int64{},
 		lastAutoPush: map[string]int64{},
 		panelState:   map[string]bool{},
+		pushing:      map[string]bool{},
+		retrying:     map[string]bool{},
 	}
 	b.loadState()
 	return b
@@ -389,6 +395,21 @@ func (b *Bridge) PushAccount(bot Bot, index int) (map[string]any, error) {
 		return nil, errors.New("目标面板不存在")
 	}
 	panel := panels[index]
+	// 同一账号同一面板同时只允许一个推送在途：巡检/定时/手动叠加时直接跳过
+	pushKey := fmt.Sprintf("%d:%d", index, bot.SelfID)
+	b.pushingMu.Lock()
+	if b.pushing[pushKey] {
+		b.pushingMu.Unlock()
+		return map[string]any{"uin": strconv.FormatInt(bot.SelfID, 10), "skipped": true, "busy": true, "panel": panel.Label}, nil
+	}
+	b.pushing[pushKey] = true
+	b.pushingMu.Unlock()
+	defer func() {
+		b.pushingMu.Lock()
+		delete(b.pushing, pushKey)
+		b.pushingMu.Unlock()
+	}()
+
 	code, err := b.fetchFarmCode(bot)
 	if err != nil {
 		return nil, err
@@ -524,13 +545,34 @@ func (b *Bridge) PushAllOnline(index int) []map[string]any {
 	return results
 }
 
-// retryPushLater 失败后延迟 30 秒自动重试一次；成功与否都写动态。
+// retryPushLater 失败后按 30s → 2min → 5min 退避重试三次；同一账号同一面板只保留一条重试链。
 func (b *Bridge) retryPushLater(bot Bot, index int) {
-	time.Sleep(30 * time.Second)
-	if _, err := b.PushAccount(bot, index); err != nil {
-		fail := false
-		b.LogActivity("push", fmt.Sprintf("%d 自动重试仍失败：%v", bot.SelfID, err), "", &fail)
+	key := fmt.Sprintf("%d:%d", index, bot.SelfID)
+	b.pushingMu.Lock()
+	if b.retrying[key] {
+		b.pushingMu.Unlock()
+		return
 	}
+	b.retrying[key] = true
+	b.pushingMu.Unlock()
+	defer func() {
+		b.pushingMu.Lock()
+		delete(b.retrying, key)
+		b.pushingMu.Unlock()
+	}()
+
+	for attempt, wait := range []time.Duration{30 * time.Second, 2 * time.Minute, 5 * time.Minute} {
+		time.Sleep(wait)
+		if _, err := b.PushAccount(bot, index); err == nil {
+			if attempt > 0 {
+				ok := true
+				b.LogActivity("push", fmt.Sprintf("%d 第 %d 次重试成功", bot.SelfID, attempt+1), "", &ok)
+			}
+			return
+		}
+	}
+	fail := false
+	b.LogActivity("push", fmt.Sprintf("%d 自动重试 3 次仍失败，请检查面板", bot.SelfID), "", &fail)
 }
 
 func (b *Bridge) TestPanel(index int) (map[string]any, error) {

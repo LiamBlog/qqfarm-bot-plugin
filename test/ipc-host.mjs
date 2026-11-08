@@ -200,6 +200,9 @@ summarize('配置导出不含访问 Code', Array.isArray(exported?.farm?.panels)
 const imported = await fetch(`${BASE}/api/config/import`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ farm: { enabled: true, refreshMinutes: 30, panels: [{ label: 'IMP', baseUrl: farmURL }], activePanel: 0 } }) }).then(r => r.json()).catch(() => null)
 summarize('配置导入并按地址保留 Code', imported?.ok === true && imported.state.config.panels.length === 1 && imported.state.config.panels[0].hasCode === true, `panels=${imported?.state?.config?.panels?.length}`)
 
+const logs = await fetch(`${BASE}/api/logs?limit=50`).then(r => r.json()).catch(() => null)
+summarize('/api/logs 返回运行日志', logs?.ok === true && Array.isArray(logs.lines) && logs.lines.length > 0, `lines=${logs?.lines?.length}`)
+
 const page = await fetch(`${BASE}/`).then(r => r.text()).catch(() => '')
 summarize('管理端页面可访问', page.includes('<html') && page.includes('drawerMask'), `${page.length} 字节`)
 
