@@ -165,6 +165,9 @@ const cfg2 = await fetch(`${BASE}/api/config`, { method: 'POST', headers: { 'Con
 ], activePanel: 0 } }) }).then(r => r.json()).catch(() => null)
 summarize('多面板配置落盘', cfg2?.state?.config?.panels?.length === 2 && cfg2.state.panels[0]?.ok === true && cfg2.state.panels[1]?.ok === false, '')
 
+const bcast = await fetch(`${BASE}/api/broadcast`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"self_id":10001,"protocol_id":0}' }).then(r => r.json()).catch(() => null)
+summarize('广播推送覆盖全部面板', bcast?.ok === true && bcast.results?.length === 2 && bcast.results.some(r => r.ok) && bcast.results.some(r => !r.ok), `results=${bcast?.results?.length} 成功=${bcast?.results?.filter(r => r.ok).length}`)
+
 const tpBad = await fetch(`${BASE}/api/test_panel`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"panel":1}' }).then(r => r.json()).catch(() => null)
 summarize('不可达面板返回明确错误', tpBad?.ok === false && Boolean(tpBad.error), tpBad?.error)
 

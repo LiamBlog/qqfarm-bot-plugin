@@ -6,6 +6,9 @@
 
 ## 版本记录
 
+### 3.7.0
+- 广播推送：账号可一键推送到全部已配置面板（账号详情 / 批量操作均可），逐面板返回结果
+
 ### 3.6.2
 - 构建支持 Windows：`bash build.sh 3.6.2 windows` 产出 `windows-amd64` 包（bin/qqfarm-bot.exe）
 - CI 矩阵扩展到三平台，Release 同时附带 linux-amd64 / linux-arm64 / windows-amd64

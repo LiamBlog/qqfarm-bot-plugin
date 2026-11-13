@@ -545,6 +545,32 @@ func (b *Bridge) PushAllOnline(index int) []map[string]any {
 	return results
 }
 
+// Broadcast 把同一账号推送到全部面板，返回逐面板结果。
+func (b *Bridge) Broadcast(bot Bot) ([]map[string]any, error) {
+	panels := b.Panels()
+	if len(panels) == 0 {
+		return nil, errors.New("尚未配置面板")
+	}
+	results := make([]map[string]any, 0, len(panels))
+	okN, failN := 0, 0
+	for i, p := range panels {
+		res, err := b.PushAccount(bot, i)
+		if err != nil {
+			failN++
+			results = append(results, map[string]any{"panel": p.Label, "ok": false, "error": err.Error()})
+			continue
+		}
+		okN++
+		results = append(results, map[string]any{"panel": p.Label, "ok": true, "skipped": res["skipped"] == true})
+	}
+	good := failN == 0
+	b.LogActivity("push", fmt.Sprintf("%d 广播 %d 个面板：成功 %d / 失败 %d", bot.SelfID, len(panels), okN, failN), "", &good)
+	if okN == 0 {
+		return results, errors.New("所有面板推送均失败")
+	}
+	return results, nil
+}
+
 // retryPushLater 失败后按 30s → 2min → 5min 退避重试三次；同一账号同一面板只保留一条重试链。
 func (b *Bridge) retryPushLater(bot Bot, index int) {
 	key := fmt.Sprintf("%d:%d", index, bot.SelfID)

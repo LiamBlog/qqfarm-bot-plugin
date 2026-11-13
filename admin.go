@@ -291,6 +291,22 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 		a.invalidatePanels()
 		jsonOut(200, map[string]any{"ok": true, "results": results, "state": a.state(60)})
 
+	case r.URL.Path == "/api/broadcast" && r.Method == http.MethodPost:
+		body := readBody()
+		selfID := int64(toFloat(body["self_id"]))
+		if selfID <= 0 {
+			jsonOut(400, map[string]any{"error": "self_id 无效"})
+			return
+		}
+		bot := Bot{SelfID: selfID, ProtocolID: int64(toFloat(body["protocol_id"])), Nickname: stringField(body, "nickname")}
+		results, err := a.bridge.Broadcast(bot)
+		a.invalidatePanels()
+		if err != nil {
+			jsonOut(400, map[string]any{"error": err.Error(), "results": results})
+			return
+		}
+		jsonOut(200, map[string]any{"ok": true, "results": results, "state": a.state(60)})
+
 	case r.URL.Path == "/api/test_panel" && r.Method == http.MethodPost:
 		body := readBody()
 		index := a.cfg.Get().ActivePanel

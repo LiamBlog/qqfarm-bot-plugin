@@ -526,6 +526,7 @@
         <div class="bulk-bar" id="bulkBar">
           <span id="bulkCount">已选 0</span>
           <button class="mini-btn" id="bulkPush" type="button">推送选中</button>
+          <button class="mini-btn" id="bulkBroadcast" type="button" title="把选中账号推送到全部已配置面板">广播面板</button>
           <button class="mini-btn" id="bulkClear" type="button">取消</button>
         </div>
         <div class="acc-filter">
@@ -833,6 +834,31 @@ set('bulkPush', b=>b.onclick=async()=>{
   toast('批量推送完成：成功 '+ok+(fail?' · 失败 '+fail:''), fail===0)
   load()
 })
+set('bulkBroadcast', b=>b.onclick=async()=>{
+  if(!selected.size) return
+  b.disabled=true
+  const old=b.innerHTML
+  b.innerHTML=`<span class="spin">${ICONS.refresh}</span>广播中`
+  let okN=0, panelTotal=0, failN=0
+  for(const key of [...selected]){
+    const [self,proto]=key.split(':').map(Number)
+    try{
+      const j=await post('api/broadcast',{self_id:self,protocol_id:proto})
+      const rs=Array.isArray(j.results)?j.results:[]
+      panelTotal+=rs.length
+      okN+=rs.filter(r=>r.ok).length
+    }catch(e){
+      const rs=Array.isArray(e?.results)?e.results:[]
+      panelTotal+=rs.length
+      okN+=rs.filter(r=>r.ok).length
+      failN++
+    }
+    await new Promise(r=>setTimeout(r,350))
+  }
+  b.disabled=false; b.innerHTML=old
+  toast('广播完成：'+okN+'/'+panelTotal+' 个面板成功'+(failN?' · '+failN+' 个账号失败':''), failN===0 && okN===panelTotal)
+  load()
+})
 /* ---------- 快捷键：/ 搜索，r 刷新 ---------- */
 document.addEventListener('keydown', e=>{
   const tag=(document.activeElement?.tagName||'').toLowerCase()
@@ -990,7 +1016,7 @@ function openAccount(selfId){
       <div class="dw-item" id="dwRemarkRow"><span>备注</span><span class="faint" id="dwRemarkText">${g.remark?esc(g.remark):'未设置'}</span>
         <button class="mini-btn" id="dwRemarkEdit" type="button">${ICONS.pencil}编辑</button></div>
     </div>
-    <div class="dw-sec"><h3>面板接入</h3>${panelRows}</div>
+    <div class="dw-sec"><h3>面板接入</h3>${panelRows}${panels.length?`<button class="mini-btn" id="dwBroadcast" type="button" style="margin-top:8px;width:100%;justify-content:center">${ICONS.upload}一键推送到全部面板</button>`:''}</div>
     <div class="dw-sec"><h3>协议实例</h3>${instRows}</div>
     <div class="dw-sec"><h3>相关动态</h3>${actRows}</div>`
 
@@ -1007,6 +1033,24 @@ function openAccount(selfId){
       openAccount(selfId)
     }catch(e){
       toast('推送失败：'+e.message,false)
+      btn.disabled=false; btn.innerHTML=old
+    }
+  })
+  // 抽屉内：广播到全部面板
+  set('dwBroadcast', btn=>btn.onclick=async()=>{
+    if(!android) return
+    btn.disabled=true
+    const old=btn.innerHTML
+    btn.innerHTML=`<span class="spin">${ICONS.refresh}</span>广播中`
+    try{
+      const j=await post('api/broadcast',{self_id:Number(g.self_id),protocol_id:android.protocol_id,nickname:g.nickname||''})
+      const rs=Array.isArray(j.results)?j.results:[]
+      const okN=rs.filter(r=>r.ok).length
+      toast('广播完成：'+okN+'/'+rs.length+' 个面板成功', okN===rs.length)
+      await load()
+      openAccount(selfId)
+    }catch(e){
+      toast('广播失败：'+e.message,false)
       btn.disabled=false; btn.innerHTML=old
     }
   })
