@@ -448,8 +448,115 @@
     .stats{grid-template-columns:1fr 1fr;gap:10px}.stat{padding:12px 14px}.card{padding:15px;border-radius:12px}
     .search{width:130px}.countdown,.updated{display:none}
   }
+  /* ================= 管理台层级优化 ================= */
+  body { letter-spacing:.01em; }
+  .wrap { position:relative; }
+  header { min-height:72px; position:relative; }
+  .title-block h1 { line-height:1.35; }
+  .head-actions { margin-left:auto; }
+  .head-actions .badge { min-height:30px; }
+  .tabs { position:sticky; top:0; z-index:15; box-shadow:0 8px 20px color-mix(in srgb,var(--bg) 72%,transparent); }
+  .tab-panel { min-height:240px; }
+  .card { overflow:hidden; }
+  .card-head { padding-bottom:12px; border-bottom:1px solid color-mix(in srgb,var(--line) 68%,transparent); }
+  .card-head h2 { letter-spacing:.01em; }
+  .card-head h2 .updated { margin-left:2px; }
+  .acc-filter { padding:3px; border:1px solid var(--line); border-radius:999px; background:var(--card2); }
+  .acc-filter .chip { border-color:transparent; padding:3px 10px; }
+  .acc-filter .chip.active { border-color:transparent; }
+  .sort-select, .search { height:32px; }
+  .search { box-shadow:inset 0 1px 2px color-mix(in srgb,var(--line) 40%,transparent); }
+  .panel-row, .panel-card, .acc-card { box-shadow:0 2px 10px color-mix(in srgb,var(--line) 24%,transparent); }
+  .panel-row:hover, .panel-card:hover, .acc-card:hover { border-color:color-mix(in srgb,var(--accent) 45%,var(--line)); }
+  .form input, .panel-form input { box-shadow:inset 0 1px 2px color-mix(in srgb,var(--line) 35%,transparent); }
+  footer { padding-top:8px; border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent); }
+
+  @media (max-width:960px){
+    header { position:relative; }
+    .tabs { top:0; }
+  }
+  @media (max-width:640px){
+    header { min-height:0; gap:10px; margin-left:0; margin-right:0; padding:16px 0 12px; }
+    .head-actions { width:100%; margin-left:0; }
+    .head-actions .badge { flex:1; justify-content:center; }
+    .head-actions .btn { flex:0 0 auto; }
+    .tabs { position:static; margin-top:12px; box-shadow:none; }
+    .card-head { align-items:flex-start; }
+    .card-head h2 { width:100%; }
+    .acc-filter { order:3; margin-left:0; }
+    .sort-select { order:4; }
+    .search { order:5; flex:1; min-width:130px; }
+    .bulk-bar { order:6; }
+  }
+  @media (max-width:420px){
+    .wrap { padding-left:10px; padding-right:10px; }
+    .logo { width:40px; height:40px; }
+    .title-block { min-width:0; }
+    .title-block h1 { font-size:15px; }
+    .head-actions .badge { font-size:11px; padding-left:7px; padding-right:7px; }
+    .tabs { margin-left:-2px; margin-right:-2px; }
+    .tab { min-width:76px; }
+  }
   @media (prefers-reduced-motion: reduce){
     *,*::before,*::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+  }
+  /* 静态布局覆盖：工具栏、设置分组与窄屏信息层级 */
+  body { background:var(--bg); }
+  .logo { box-shadow:none; }
+  .logo::after, header::after { display:none; }
+  .btn.primary { background:var(--accent);box-shadow:none; }
+  .drawer { background:var(--card); }
+  .drawer-head { background:var(--card2); }
+  .push-stat { background:var(--ok-soft); }
+  .head-status, .head-controls { display:flex;align-items:center;gap:9px;flex-wrap:wrap; }
+  #btnPushAll .btn-t { display:inline; }
+  .stat-note { color:var(--faint);font-size:10.5px;line-height:1.4;margin-top:3px; }
+  #stLastPush { font-size:16px;overflow-wrap:anywhere; }
+  .account-toolbar { margin-bottom:14px; }
+  .account-heading { margin-bottom:12px; }
+  .account-heading h2 { width:auto;flex-wrap:wrap; }
+  .account-heading .updated { display:inline; }
+  .account-controls { display:flex;gap:10px;align-items:center;flex-wrap:wrap; }
+  .account-controls .search { order:0;flex:1;min-width:180px;width:auto;max-width:420px; }
+  .account-controls .acc-filter { order:0;margin-left:auto; }
+  .account-controls .sort-select { order:0; }
+  .account-toolbar .bulk-bar { margin:12px 0 0;padding:9px 12px;width:100%;border-radius:10px;flex-wrap:wrap;justify-content:flex-start; }
+  .account-toolbar #bulkCount { margin-right:auto; }
+  .sr-only { position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0; }
+  #cfg { grid-template-columns:1fr;gap:18px; }
+  .settings-group { min-width:0;display:grid;grid-template-columns:118px minmax(0,1fr);gap:12px 14px;align-items:center;padding:16px;border:1px solid var(--line);border-radius:12px; }
+  .settings-group legend { padding:0 7px;font-size:14px;font-weight:600;color:var(--text); }
+  .settings-tools { margin-top:22px;padding-top:18px;border-top:1px solid var(--line); }
+  .settings-tools h3 { font-size:14px;font-weight:600;margin-bottom:10px; }
+  .settings-instance { overflow-wrap:anywhere; }
+  .panel-more { flex:1 1 100%;min-width:0; }
+  .panel-more summary { width:fit-content;cursor:pointer;color:var(--muted);font-size:12px;padding:6px 0; }
+  .panel-more[open] summary { color:var(--violet);margin-bottom:6px; }
+  .panel-more .panel-actions { margin-top:6px; }
+  .panel-check { display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer; }
+  .panel-check input { width:15px;height:15px;accent-color:var(--accent); }
+  @media (max-width:820px){
+    .account-cards .remark, .account-cards .acc-meta { display:none; }
+  }
+  @media (max-width:640px){
+    .head-actions { display:flex;flex-direction:column;align-items:stretch;gap:10px; }
+    .head-status, .head-controls { width:100%; }
+    .head-status .badge { flex:1;justify-content:center; }
+    .head-controls { justify-content:flex-end; }
+    .head-controls #btnTheme { margin-right:auto; }
+    .account-heading { align-items:center; }
+    .account-heading h2 { width:auto; }
+    .account-heading .head-right { margin-left:auto; }
+    .account-controls .search { flex-basis:100%;max-width:none;min-width:0; }
+    .account-controls .acc-filter { margin-left:0; }
+    .account-controls .sort-select { margin-left:auto;max-width:48%; }
+    .settings-group { grid-template-columns:minmax(90px,118px) minmax(0,1fr);padding:12px;gap:12px 10px; }
+    .settings-group label { margin-top:0; }
+    .settings-group .field { min-width:0; }
+    .stats { gap:0; }
+    .stat { gap:8px;padding:10px; }
+    .stat .ico { width:28px;height:28px; }
+    .stats .donut { display:none; }
   }
 </style>
 </head>
@@ -467,8 +574,11 @@
       <div class="sub">萌卡账号农场 Code → qq-farm-bot 多面板自动推送与可视化管控</div>
     </div>
     <div class="head-actions">
+      <div class="head-status">
       <span class="badge" id="ipcState"><span class="dot on"></span>IPC 已连接</span>
       <span class="badge" id="farmState" title="点击查看面板状态"><span class="dot mid"></span>面板检测中</span>
+      </div>
+      <div class="head-controls">
       <button class="btn icon-only" id="btnTheme" title="切换主题（自动 / 浅色 / 深色）"></button>
       <span class="countdown" id="countdown"></span>
       <button class="btn" id="btnReload" title="立即刷新">
@@ -478,6 +588,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
         <span class="btn-t">推送全部</span>
       </button>
+      </div>
     </div>
   </header>
 
@@ -497,11 +608,11 @@
   <section class="stats">
     <div class="stat"><div class="ico rose">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
-      <div class="body"><div class="num" id="stAccounts"></div><div class="lbl">安卓账号（实例）</div></div>
+      <div class="body"><div class="num" id="stAccounts"></div><div class="lbl">账号总数（QQ 去重）</div></div>
     </div>
     <div class="stat"><div class="ico green">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92V21a1 1 0 0 1-1.09 1 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 3.2 3.1 1 1 0 0 1 4.2 2h4.09a1 1 0 0 1 1 .75c.12.72.37 1.42.72 2.06a1 1 0 0 1-.24 1.27l-1.6 1.6a16 16 0 0 0 6 6l1.6-1.6a1 1 0 0 1 1.27-.24c.64.35 1.34.6 2.06.72a1 1 0 0 1 .75 1z"/></svg></div>
-      <div class="body"><div class="num" id="stOnline"></div><div class="lbl">在线实例</div></div>
+      <div class="body"><div class="num" id="stOnline"></div><div class="lbl">在线账号</div></div>
       <div class="donut" title="在线占比">
         <svg viewBox="0 0 42 42"><circle class="ring" cx="21" cy="21" r="17"/><circle class="val" id="donutVal" cx="21" cy="21" r="17" stroke-dasharray="106.8" stroke-dashoffset="106.8"/></svg>
         <div class="pct" id="donutPct">–</div>
@@ -509,40 +620,47 @@
     </div>
     <div class="stat"><div class="ico violet">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="3"/><path d="m10 9 4 3-4 3z"/></svg></div>
-      <div class="body"><div class="num" id="stFarm"></div><div class="lbl">面板内账号总数</div></div>
+      <div class="body"><div class="num" id="stPending"></div><div class="lbl">待处理账号</div></div>
     </div>
     <div class="stat"><div class="ico amber">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
-      <div class="body"><div class="num" id="stRefresh"></div><div class="lbl">定时刷新（分钟）</div></div>
+      <div class="body"><div class="num" id="stLastPush"></div><div class="lbl">最近推送</div><div class="stat-note">最近成功推送（跨面板）</div></div>
     </div>
   </section>
 
     <div class="card">
-      <div class="card-head">
-        <h2>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-          萌卡账号 <span class="push-stat" id="pushStat" style="display:none"></span><span class="updated" id="updatedAt"></span>
-        </h2>
+      <div class="account-toolbar">
+        <div class="card-head account-heading">
+          <h2>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+            萌卡账号 <span class="badge" id="accountCount">–</span>
+          </h2>
+          <div class="head-right"><span class="push-stat" id="pushStat" style="display:none"></span><span class="updated" id="updatedAt"></span></div>
+        </div>
+        <div class="account-controls">
+        <label class="sr-only" for="search">搜索账号</label>
+        <input class="search" id="search" type="text" placeholder="搜索 QQ / 昵称 / 备注…">
+        <div class="acc-filter">
+          <button class="chip active" data-filter="all">全部</button>
+          <button class="chip" data-filter="online">仅在线</button>
+        </div>
+        <label class="sr-only" for="accSort">账号排序</label>
+        <select class="sort-select" id="accSort" title="账号排序">
+          <option value="online">在线优先</option>
+          <option value="level">等级最高</option>
+          <option value="code">Code 最早</option>
+        </select>
+        </div>
         <div class="bulk-bar" id="bulkBar">
           <span id="bulkCount">已选 0</span>
           <button class="mini-btn" id="bulkPush" type="button">推送选中</button>
           <button class="mini-btn" id="bulkBroadcast" type="button" title="把选中账号推送到全部已配置面板">广播面板</button>
           <button class="mini-btn" id="bulkClear" type="button">取消</button>
         </div>
-        <div class="acc-filter">
-          <button class="chip active" data-filter="all">全部</button>
-          <button class="chip" data-filter="online">仅在线</button>
-        </div>
-        <select class="sort-select" id="accSort" title="账号排序">
-          <option value="online">在线优先</option>
-          <option value="level">等级最高</option>
-          <option value="code">Code 最早</option>
-        </select>
-        <input class="search" id="search" type="text" placeholder="搜索 QQ / 昵称 / 备注…">
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th scope="col" class="c-check"><input type="checkbox" id="checkAll" title="全选可推送账号"></th><th scope="col">账号</th><th scope="col" class="c-proto">协议实例</th><th scope="col">状态</th><th scope="col" class="c-level">等级</th><th scope="col" class="c-social">好友/群</th><th scope="col">面板 Code</th><th scope="col">操作</th></tr></thead>
+          <thead><tr><th scope="col" class="c-check"><label class="sr-only" for="checkAll">全选可推送账号</label><input type="checkbox" id="checkAll" title="全选可推送账号"></th><th scope="col">账号</th><th scope="col" class="c-proto">协议实例</th><th scope="col">状态</th><th scope="col" class="c-level">等级</th><th scope="col" class="c-social">好友/群</th><th scope="col">同步状态 · 当前目标</th><th scope="col">操作</th></tr></thead>
           <tbody id="accounts"></tbody>
         </table>
       </div>
@@ -564,15 +682,18 @@
       </div>
       <div class="panel-grid" id="panelList"></div>
       <div class="panel-form" id="panelForm">
-        <div class="row"><label>名称</label><input type="text" id="pf_label" placeholder="FARM2"></div>
-        <div class="row"><label>地址</label><input type="text" id="pf_baseUrl" placeholder="http://host:3007"></div>
-        <div class="row"><label>访问 Code</label><input type="password" id="pf_accessCode" placeholder="该面板的访问 Code（编辑可留空保持不变）"></div>
+        <div class="row"><label for="pf_label">名称</label><input type="text" id="pf_label" placeholder="FARM2"></div>
+        <div class="row"><label for="pf_baseUrl">地址</label><input type="text" id="pf_baseUrl" placeholder="http://host:3007"></div>
+        <div class="row"><label for="pf_accessCode">访问 Code</label><input type="password" id="pf_accessCode" autocomplete="new-password" placeholder="旧版 qq-farm-bot 的访问 Code（编辑可留空保持不变）"></div>
+        <div class="row"><label for="pf_username">404 用户名</label><input type="text" id="pf_username" autocomplete="username" spellcheck="false" placeholder="qq-farm-bot-404 管理员用户名；旧版面板留空"></div>
+        <div class="row"><label for="pf_password">404 密码</label><input type="password" id="pf_password" autocomplete="new-password" placeholder="仅 404 版面板需要；编辑可留空保持不变"></div>
         <div class="btns">
           <button class="mini-btn" id="pfCancel">取消</button>
           <button class="btn primary" id="pfSave" style="padding:6px 14px">保存</button>
         </div>
       </div>
-      <div class="faint" style="margin-top:12px">★ 为当前推送目标（上线 / 定时刷新 / 推送全部均发往此面板）</div>
+      <div class="faint" style="margin-top:12px">★ 为当前推送目标（上线 / 定时刷新 / 推送全部均发往此面板）<br>
+        旧版 qq-farm-bot：填写访问 Code；qq-farm-bot-404：填写管理员用户名和密码（首次默认 admin / admin，请先在面板内改密）。</div>
     </div>
 
     <div class="card">
@@ -619,31 +740,41 @@
         </h2>
       </div>
       <form class="form" id="cfg" onsubmit="return false" style="max-width:660px">
-        <label>启用推送</label>
-        <span class="switch"><input type="checkbox" id="f_enabled"><i></i></span>
-        <label>上线自动推送</label>
-        <span class="switch"><input type="checkbox" id="f_pushOnLogin"><i></i></span>
-        <label>定时刷新</label>
-        <div class="field"><input type="number" id="f_refreshMinutes" min="0" step="5"><small>每 N 分钟重推一次；会重启运行中的会话，建议保持 0（低于 5 分钟按 5 分钟计）</small></div>
-        <label>自动巡检</label>
-        <span class="switch"><input type="checkbox" id="f_autoRepair"><i></i></span>
-        <label>巡检间隔</label>
-        <div class="field"><input type="number" id="f_repairMinutes" min="5" max="1440"><small>每 N 分钟检查一次：面板里已停止的账号自动补推；已推送过但被删除的账号补回当前面板</small></div>
-        <label>Code 保鲜</label>
-        <div class="field"><input type="number" id="f_staleHours" min="0" max="168"><small>在线账号 Code 超过 N 小时自动重推一次（0 关闭）；仅重推已推送过的账号，不会新增</small></div>
+        <fieldset class="settings-group">
+          <legend>自动推送</legend>
+          <label for="f_enabled">启用推送</label>
+          <span class="switch"><input type="checkbox" id="f_enabled"><i></i></span>
+          <label for="f_pushOnLogin">上线自动推送</label>
+          <span class="switch"><input type="checkbox" id="f_pushOnLogin"><i></i></span>
+          <label for="f_refreshMinutes">定时刷新</label>
+          <div class="field"><input type="number" id="f_refreshMinutes" min="0" step="5"><small>每 N 分钟重推一次；会重启运行中的会话，建议保持 0（低于 5 分钟按 5 分钟计）</small></div>
+        </fieldset>
+        <fieldset class="settings-group">
+          <legend>巡检与保鲜</legend>
+          <label for="f_autoRepair">自动巡检</label>
+          <span class="switch"><input type="checkbox" id="f_autoRepair"><i></i></span>
+          <label for="f_repairMinutes">巡检间隔</label>
+          <div class="field"><input type="number" id="f_repairMinutes" min="5" max="1440"><small>每 N 分钟检查一次：面板里已停止的账号自动补推；已推送过但被删除的账号补回当前面板</small></div>
+          <label for="f_staleHours">Code 保鲜</label>
+          <div class="field"><input type="number" id="f_staleHours" min="0" max="168"><small>在线账号 Code 超过 N 小时自动重推一次（0 关闭）；仅重推已推送过的账号，不会新增</small></div>
+        </fieldset>
         <div class="save-row"><button class="btn primary" id="btnSave">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>保存设置</button></div>
       </form>
       <div class="faint" id="nextRun" style="margin-top:14px"></div>
-      <div class="faint" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line)">实例 <code id="fInstanceId">–</code> · 数据目录 <code id="fDataPath">–</code></div>
+      <section class="settings-tools" aria-labelledby="settingsToolsTitle">
+      <h3 id="settingsToolsTitle">配置与诊断</h3>
+      <div class="faint settings-instance">实例 <code id="fInstanceId">–</code> · 数据目录 <code id="fDataPath">–</code></div>
       <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <button class="mini-btn" id="btnExport" type="button" title="导出状态快照（不含面板访问 Code），便于反馈问题">导出诊断包</button>
+        <button class="mini-btn" id="btnExport" type="button" title="导出状态快照（不含面板凭据与账号 Code），便于反馈问题">导出诊断包</button>
         <button class="mini-btn" id="btnCfgExport" type="button" title="导出推送配置（不含访问 Code）">导出配置</button>
         <button class="mini-btn" id="btnCfgImport" type="button" title="从 JSON 导入推送配置">导入配置</button>
         <button class="mini-btn" id="btnLogs" type="button" title="导出最近 300 行运行日志，便于排查">导出日志</button>
+        <label class="sr-only" for="cfgFile">导入配置文件</label>
         <input type="file" id="cfgFile" accept="application/json,.json" style="display:none">
         <span class="faint">包含版本、配置（脱敏）、账号、面板状态与动态记录</span>
       </div>
+      </section>
     </div>
   </section>
 
@@ -902,16 +1033,37 @@ async function post(path, body){
   return j
 }
 
-const panelHits = uin => (STATE?.panels||[]).map((p,i)=>({p,i,hit:(p.accounts||[]).find(a=>a.uin===String(uin))})).filter(x=>x.hit)
+const panelHits = uin => (STATE?.panels||[]).map((p,i)=>({p,i,hit:(p.accounts||[]).find(a=>String(a.uin)===String(uin))})).filter(x=>x.hit)
+
+function syncStatus(g, s){
+  const cfg=s.config||{}, p=s.panels?.[cfg.activePanel||0]
+  const online=g.instances.some(a=>a.online)
+  if(!cfg.enabled) return {label:'推送已暂停',cls:'n',pending:false}
+  if(!cfg.panels?.length) return {label:'待配置面板',cls:'y',pending:online}
+  if(!p?.ok) return {label:'面板状态未知',cls:'y',pending:online}
+  const hit=(p.accounts||[]).find(a=>String(a.uin)===String(g.self_id))
+  if(hit?.running===false) return {label:'面板已停止',cls:'r',pending:true}
+  if(!hit) return {label:online?'待推送':'离线 · 未接入',cls:online?'y':'n',pending:online}
+  const limit=Number(cfg.staleHours)>0?Number(cfg.staleHours):48
+  if(g.codeAge!=null && g.codeAge>limit*3600000) return {label:'Code 超时',cls:'y',pending:true,title:`超过 ${limit} 小时保鲜阈值，不代表 Code 已失效`}
+  return {label:'已同步',cls:'n',pending:false,title:'当前目标面板已接入'}
+}
+function pushTime(g,s){
+  return g.codeAge==null?'暂无成功推送记录':new Date(s.now-g.codeAge).toLocaleString('zh-CN',{hour12:false})
+}
+function syncMarkup(g,s){
+  const st=syncStatus(g,s)
+  return `<span class="pill ${st.cls}" title="${esc(st.title||'当前目标面板状态')}">${st.label}</span><div class="faint" style="font-size:11px;margin-top:5px" title="跨面板最近成功推送">${g.codeAge==null?'暂无推送记录':'最近推送 '+esc(pushTime(g,s))}</div>`
+}
 
 /** 按 QQ 分组账号实例（供账号表与诊断复用）。 */
 function collectGroups(s){
   const groups=new Map()
   for(const a of s.accounts||[]){
-    const g=groups.get(a.self_id)||{self_id:a.self_id,nickname:a.nickname||'',remark:a.remark||'',instances:[],codeAge:a.code_age_ms||null}
+    const g=groups.get(a.self_id)||{self_id:a.self_id,nickname:a.nickname||'',remark:a.remark||'',instances:[],codeAge:a.code_age_ms??null}
     if(!g.nickname&&a.nickname) g.nickname=a.nickname
     if(!g.remark&&a.remark) g.remark=a.remark
-    if(a.code_age_ms&&!g.codeAge) g.codeAge=a.code_age_ms
+    if(a.code_age_ms!=null && (g.codeAge==null || a.code_age_ms<g.codeAge)) g.codeAge=a.code_age_ms
     g.instances.push(a)
     groups.set(a.self_id,g)
   }
@@ -944,9 +1096,7 @@ function renderAccountCards(groups, s, emptyMsg){
     </div>`
     const body=insts.map(a=>{
       const plat=(a.platform||'').toLowerCase(), isAndroid=plat.includes('android')
-      const codePills=hits.length
-        ? hits.map(h=>`<span class="pill g" title="${esc(h.p.label)}">${esc(h.p.label)} · ${esc(h.hit.code||'✓')}</span>`).join('')
-        : (a.online?'<span class="pill r">未推送</span>':'<span class="pill n">离线</span>')
+      const codePills=syncMarkup(g,s)
       const pushBtn=a.online&&isAndroid
         ? `<button class="mini-btn btnPush" data-self="${a.self_id}" data-proto="${a.protocol_id}" data-nick="${esc(a.nickname||'')}">${ICONS.upload}推送</button>`
         : (a.online?'<span class="faint">协议不支持</span>':'')
@@ -1122,7 +1272,7 @@ function render(s){
     set('ver', e => e.textContent='v'+s.version)
     set('fInstanceId', e => e.textContent=s.instance_id||'–')
     set('fDataPath', e => e.textContent=s.data_path||'–')
-    set('updatedAt', e => e.textContent='更新于 '+new Date().toLocaleTimeString('zh-CN',{hour12:false}))
+    set('updatedAt', e => e.textContent='更新于 '+new Date(s.now).toLocaleTimeString('zh-CN',{hour12:false}))
     set('pushStat', e => {
       const st=s.stats||{}, ok=st.todayOk||0, fail=st.todayFail||0
       if(!ok&&!fail){ e.style.display='none'; return }
@@ -1141,16 +1291,19 @@ function render(s){
       else el.innerHTML='<span class="dot off"></span>面板均不可达'
     })
 
-    const online=s.accounts.filter(a=>a.online).length
+    const allGroups=collectGroups(s)
+    const online=allGroups.filter(g=>g.instances.some(a=>a.online)).length
     // 未配置面板引导：禁用「推送全部」并提示去添加
     const hasPanelCfg=(cfg.panels||[]).length>0
     set('noPanelNotice', el => el.style.display = hasPanelCfg ? 'none' : 'flex')
     set('btnPushAll', b => { b.disabled = !hasPanelCfg })
-    numUp('stAccounts',s.accounts.length)
+    numUp('stAccounts',allGroups.length)
     numUp('stOnline',online)
-    numUp('stFarm',panels.reduce((n,p)=>n+(p.accounts?.length||0),0))
-    set('stRefresh', e => e.textContent=cfg.enabled?(cfg.refreshMinutes||0):'–')
-    renderDonut(online,s.accounts.length)
+    numUp('stPending',allGroups.filter(g=>syncStatus(g,s).pending).length)
+    const pushed=allGroups.filter(g=>g.codeAge!=null).sort((a,b)=>a.codeAge-b.codeAge)
+    set('stLastPush', e => {e.textContent=pushed.length?new Date(s.now-pushed[0].codeAge).toLocaleTimeString('zh-CN',{hour12:false}):'暂无';e.title=pushed.length?pushTime(pushed[0],s):'暂无成功推送记录'})
+    set('accountCount', e=>e.textContent=allGroups.length+' 个账号 · '+s.accounts.length+' 个实例')
+    renderDonut(online,allGroups.length)
 
     /* 账号表：按 QQ 分组，同 QQ 的多协议实例共用账号单元格 */
     const kw=(($('search')?.value)||'').trim().toLowerCase()
@@ -1161,8 +1314,8 @@ function render(s){
     if(accSort==='level'){
       groupList.sort((x,y)=>maxLevel(y)-maxLevel(x)||x.self_id-y.self_id)
     }else if(accSort==='code'){
-      const age=g=>Number.isFinite(Number(g.codeAge))?Number(g.codeAge):Number.MAX_SAFE_INTEGER
-      groupList.sort((x,y)=>age(x)-age(y)||x.self_id-y.self_id)
+      const age=g=>g.codeAge==null?Number.MAX_SAFE_INTEGER:Number(g.codeAge)
+      groupList.sort((x,y)=>age(y)-age(x)||x.self_id-y.self_id)
     }else{
       groupList.sort((x,y)=>{
         const xo=x.instances.some(a=>a.online),yo=y.instances.some(a=>a.online)
@@ -1186,12 +1339,7 @@ function render(s){
         const rows=insts.map((a,idx)=>{
           const plat=(a.platform||'').toLowerCase(), isAndroid=plat.includes('android')
           const platPill=`<span class="pill ${a.online?(isAndroid?'b':'n'):'n'}" title="${esc(a.protocol_version||a.platform||'')}">${isAndroid?ICONS.android:ICONS.pc}${esc(a.platform||'未知')} #${a.protocol_id}</span>`
-          const hitTitle=hits.map(h=>`${h.p.label} · ${h.hit.code||'✓'}`).join('\n')
-          const moreTitle=hits.slice(1).map(h=>h.p.label).join('、')
-          const farmCell=hits.length
-            ? `<span class="pill g" title="${esc(hitTitle)}">${esc(hits[0].p.label)} · ${esc(hits[0].hit.code||'✓')}</span>`
-              + (hits.length>1 ? ' <span class="pill b" title="' + esc(moreTitle) + '">+' + (hits.length-1) + '</span>' : '')
-            :(!a.online?'<span class="pill n">离线</span>':(plat&&!isAndroid?'<span class="pill y">协议不支持</span>':'<span class="pill r">未推送</span>'))
+          const farmCell=syncMarkup(g,s)
           const action=a.online
             ?(isAndroid
               ?`<button class="mini-btn btnPush" data-self="${a.self_id}" data-proto="${a.protocol_id}" data-nick="${esc(a.nickname||'')}" title="推送到当前面板">${ICONS.upload}推送</button>`
@@ -1208,12 +1356,7 @@ function render(s){
                 <span class="txt">${g.remark?esc(g.remark):'<span class="add">添加备注</span>'}</span>
                 <span class="edit" title="编辑备注">${ICONS.pencil}</span>
               </span>
-              ${g.codeAge?(()=>{
-                const h=g.codeAge/3600000
-                const cls=h<12?'g':(h<48?'y':'r')
-                const txt=h<1?Math.max(1,Math.round(h*60))+' 分钟':h.toFixed(1)+' 小时'
-                return `<span class="code-age"><span class="pill ${cls}">Code ${txt}</span></span>`
-              })():''}
+
             </div></div></td>`:''
           return `<tr class="${idx===0?'group-start':''} ${onlineN?'group-online':''}">${checkCell}${accountCell}
             <td class="c-proto">${platPill}</td>
@@ -1245,7 +1388,7 @@ function render(s){
 
     /* 动态流 */
     const hist = Array.isArray(s.history) ? s.history : []
-    set('tabCntAccounts', e => e.textContent = s.accounts.length)
+    set('tabCntAccounts', e => e.textContent = allGroups.length)
     set('tabCntPanels', e => e.textContent = panels.length ? `${panels.filter(p=>p.ok).length}/${panels.length}` : '0')
     set('tabCntActivity', e => e.textContent = hist.length)
     set('histMore', el => el.style.display = (hist.length >= historyLimit && historyLimit < 200) ? 'flex' : 'none')
@@ -1389,11 +1532,16 @@ function renderPanels(s){
       `<span class="pill ${a.running===false?'y':(a.code?'g':'n')}" title="${esc(a.name||a.uin)}${a.running===false?'（已停止）':(a.running?'（运行中）':'')}">${esc(a.uin)} · ${esc(a.code||'✓')}</span>`).join('')
     const accs=p.accounts||[], stopped=accs.filter(a=>a.running===false).length
     const accSummary=`<span class="pill ${stopped?'y':'n'}" title="面板内账号${stopped?`，其中 ${stopped} 个已停止`:''}">${accs.length} 账号${stopped?` · ${stopped} 停止`:''}</span>`
+    const is404=p.mode==='admin'
+    const modeChip=is404
+      ?`<span class="pill n" title="qq-farm-bot-404 管理员登录${p.username?'：'+esc(p.username):''}">404</span>`
+      :`<span class="pill n" title="旧版 qq-farm-bot：访问 Code 登录">Code</span>`
+    const authWarn=p.hasAuth===false?` <span class="pill y" style="font-size:11px">未配置${is404?'密码':'访问 Code'}</span>`:''
     return `<div class="panel-card ${isActive?'active':''}">
       <div class="panel-top">
         <button class="star ${isActive?'on':''}" data-act="active" data-i="${i}" title="${isActive?'当前推送目标':'设为推送目标'}">${ICONS.star}</button>
         <div style="flex:1;min-width:0">
-          <div class="panel-name">${esc(p.label||('FARM'+(i+1)))}${p.hasCode===false?' <span class="faint" style="font-size:11px">（未设 Code）</span>':''}</div>
+          <div class="panel-name">${modeChip} ${esc(p.label||('FARM'+(i+1)))}${authWarn}</div>
           <div class="panel-url" data-url="${esc(p.baseUrl||'')}" title="点击复制面板地址">${esc(p.baseUrl||'')}</div>
         </div>
         ${isActive?`<span class="pill g">${ICONS.star}推送目标</span>`:''}
@@ -1401,14 +1549,19 @@ function renderPanels(s){
       <div class="panel-meta">
         ${status}
         ${accSummary}
+        ${p.warning?`<span class="pill y" title="${esc(p.warning)}">默认密码</span>`:''}
+        ${p.authBlocked?`<span class="pill y" title="${esc(p.authError||'认证失败')}">认证失败 · 自动推送暂停</span>`:''}
+        <span class="panel-check">最近检查 ${p.checkedAt?new Date(p.checkedAt).toLocaleTimeString('zh-CN',{hour12:false}):'尚未检查'}</span>
       </div>
       ${accChips?`<div class="panel-accs">${accChips}</div>`:''}
       <div class="panel-actions">
         <button class="mini-btn" data-act="test" data-i="${i}" title="测试面板连通性（登录 + 拉取账号）">${ICONS.link}测试</button>
         <button class="mini-btn" data-act="push" data-i="${i}" title="推送全部在线安卓账号到此面板">${ICONS.upload}推送到此</button>
         <a class="mini-btn" href="${esc(p.baseUrl)}" target="_blank" rel="noopener" title="打开面板">${ICONS.link}打开</a>
-        <button class="mini-btn" data-act="edit" data-i="${i}" title="编辑面板">${ICONS.edit}编辑</button>
-        <button class="mini-btn" data-act="del" data-i="${i}" title="删除面板">${ICONS.trash}删除</button>
+        <details class="panel-more"><summary class="mini-btn">更多</summary><div>
+          <button class="mini-btn" data-act="edit" data-i="${i}" title="编辑面板">${ICONS.edit}编辑</button>
+          <button class="mini-btn" data-act="del" data-i="${i}" title="删除面板">${ICONS.trash}删除</button>
+        </div></details>
       </div>
     </div>`
   }).join('')
@@ -1437,7 +1590,7 @@ async function panelAction(act, i){
     if(b){b.disabled=true;b.innerHTML=`<span class="spin">${ICONS.refresh}</span>测试中`}
     try{
       const j=await post('api/test_panel',{panel:i})
-      if(j.ok) toast(`「${j.result.panel}」连通正常：${j.result.ms}ms · ${j.result.accounts} 个账号（运行 ${j.result.running}）`)
+      if(j.ok) toast(`「${j.result.panel}」连通正常：${j.result.ms}ms · ${j.result.accounts} 个账号（运行 ${j.result.running}）${j.result.warning?' · '+j.result.warning:''}`)
       else toast(j.error||'连通测试失败',false)
     }catch(e){toast('测试失败：'+e.message,false)}
     finally{ if(b){b.disabled=false;b.innerHTML=ICONS.link+'测试'} }
@@ -1459,23 +1612,32 @@ async function panelAction(act, i){
     $('pf_baseUrl').value=p.baseUrl||''
     $('pf_accessCode').value=''
     $('pf_accessCode').placeholder='留空保持原 Code 不变'
+    $('pf_username').value=p.username||''
+    $('pf_password').value=''
+    $('pf_password').placeholder=p.username?'留空保持原密码不变':'仅 404 版面板需要'
     $('panelForm').classList.add('show')
   }
 }
 
 set('btnAddPanel', b => b.onclick=()=>{
   editingPanel=-2
-  for(const id of ['pf_label','pf_baseUrl','pf_accessCode']) set(id,e=>e.value='')
-  set('pf_accessCode', e => e.placeholder='该面板的访问 Code')
+  for(const id of ['pf_label','pf_baseUrl','pf_accessCode','pf_username','pf_password']) set(id,e=>e.value='')
+  set('pf_accessCode', e => e.placeholder='旧版 qq-farm-bot 的访问 Code')
+  set('pf_password', e => e.placeholder='仅 404 版面板需要')
   set('panelForm', e => e.classList.add('show'))
 })
 set('pfCancel', b => b.onclick=()=>set('panelForm', e => e.classList.remove('show')))
 set('pfSave', b => b.onclick=async ()=>{
-  const label=($('pf_label')?.value||'').trim(), baseUrl=($('pf_baseUrl')?.value||'').trim(), accessCode=($('pf_accessCode')?.value||'').trim()
+  const label=($('pf_label')?.value||'').trim(), baseUrl=($('pf_baseUrl')?.value||'').trim()
+  const accessCode=($('pf_accessCode')?.value||'').trim(), username=($('pf_username')?.value||'').trim(), password=($('pf_password')?.value||'').trim()
   if(!/^https?:\/\//.test(baseUrl)) return toast('地址需以 http:// 或 https:// 开头',false)
+  if(editingPanel===-2 && !username && !accessCode) return toast('请填写访问 Code，或 404 面板的管理员用户名和密码',false)
+  if(editingPanel===-2 && username && !password) return toast('404 面板需填写管理员密码',false)
   const meta=(STATE?.config?.panels||[]).map(p=>({...p}))
-  if(editingPanel===-2) meta.push({label:label||`FARM${meta.length+1}`,baseUrl,accessCode})
-  else if(meta[editingPanel]) Object.assign(meta[editingPanel],{label:label||meta[editingPanel].label,baseUrl,accessCode})
+  if(editingPanel>=0 && username && !password && username!==(meta[editingPanel]?.username||'')) return toast('修改 404 用户名后需重新填写密码',false)
+  const item={label:label||`FARM${meta.length+1}`,baseUrl,accessCode,username,password}
+  if(editingPanel===-2) meta.push(item)
+  else if(meta[editingPanel]) Object.assign(meta[editingPanel],{...item,label:label||meta[editingPanel].label})
   try{ await savePanels(meta,STATE.config.activePanel||0); set('panelForm',e=>e.classList.remove('show')); toast(editingPanel===-2?'面板已添加':'面板已更新') }
   catch(e){ toast('保存失败：'+e.message,false) }
 })
@@ -1584,10 +1746,11 @@ set('cfgFile', input=>input.onchange=async ()=>{
     const data=JSON.parse(await file.text())
     const panels=data?.farm?.panels
     if(!Array.isArray(panels)||!panels.length) throw new Error('文件里没有有效面板')
-    if(!confirm(`导入配置将覆盖当前设置（${panels.length} 个面板；未带 Code 时按地址沿用现有值）。继续？`)) return
+    if(!confirm(`导入配置将覆盖当前设置（${panels.length} 个面板；访问 Code / 404 密码未带时，仅在地址与用户名一致时沿用现有值）。继续？`)) return
     const j=await post('api/config/import',data)
     if(j.state){ STATE=j.state; render(STATE) }
-    toast('配置已导入')
+    const needPass=(j.state?.config?.panels||[]).some(p=>p.mode==='admin'&&!p.hasPassword)
+    toast(needPass?'配置已导入，请在面板页补齐 404 管理员密码':'配置已导入', !needPass)
   }catch(e){ toast('导入失败：'+e.message,false) }
 })
 set('btnExport', b => b.onclick=()=>{
@@ -1600,10 +1763,13 @@ set('btnExport', b => b.onclick=()=>{
     config:{
       enabled:cfg.enabled, pushOnLogin:cfg.pushOnLogin,
       refreshMinutes:cfg.refreshMinutes, staleHours:cfg.staleHours, activePanel:cfg.activePanel,
-      panels:(cfg.panels||[]).map(p=>({label:p.label,baseUrl:p.baseUrl,hasCode:p.hasCode})),
+      panels:(cfg.panels||[]).map(p=>({label:p.label,baseUrl:p.baseUrl,hasCode:p.hasCode,mode:p.mode,username:p.username,hasPassword:p.hasPassword,hasAuth:p.hasAuth})),
     },
     accounts:STATE.accounts||[],
-    panels:STATE.panels||[],
+    panels:(STATE.panels||[]).map(p=>({
+      ...p,
+      accounts:(p.accounts||[]).map(a=>({id:a.id,uin:a.uin,name:a.name,platform:a.platform,running:a.running,hasCode:!!a.code})),
+    })),
     history:STATE.history||[],
   }
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'})
@@ -1630,7 +1796,7 @@ set('btnHistClear', b => b.onclick=async ()=>{
 
 skeleton()
 load()
-setInterval(load,15000)
+
 </script>
 </body>
 </html>

@@ -93,6 +93,9 @@ func (a *Admin) panelsCached() []map[string]any {
 	}
 	a.panels = a.bridge.PanelStatus()
 	a.panelAt = time.Now()
+	for _, panel := range a.panels {
+		panel["checkedAt"] = a.panelAt.UnixMilli()
+	}
 	return a.panels
 }
 
@@ -152,6 +155,8 @@ func (a *Admin) state(historyLimit int) map[string]any {
 	for _, p := range farm.Panels {
 		panelMeta = append(panelMeta, map[string]any{
 			"label": p.Label, "baseUrl": p.BaseURL, "hasCode": p.AccessCode != "",
+			"mode": p.mode(), "username": p.Username, "hasPassword": p.Password != "",
+			"hasAuth": p.hasAuth(),
 		})
 	}
 
@@ -314,6 +319,7 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 			index = int(toFloat(v))
 		}
 		result, err := a.bridge.TestPanel(index)
+		a.invalidatePanels()
 		if err != nil {
 			jsonOut(200, map[string]any{"ok": false, "error": err.Error()})
 			return
@@ -356,8 +362,8 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 		farm := a.cfg.Get()
 		panels := []map[string]any{}
 		for _, p := range farm.Panels {
-			// 不导出访问 Code
-			panels = append(panels, map[string]any{"label": p.Label, "baseUrl": p.BaseURL})
+			// 不导出访问 Code 与管理员密码
+			panels = append(panels, map[string]any{"label": p.Label, "baseUrl": p.BaseURL, "mode": p.mode(), "username": p.Username})
 		}
 		payload := map[string]any{
 			"version": version, "exportedAt": time.Now().UnixMilli(),
@@ -413,6 +419,8 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 				Label:      label,
 				BaseURL:    strings.TrimRight(strings.TrimSpace(stringField(p, "baseUrl")), "/"),
 				AccessCode: strings.TrimSpace(stringField(p, "accessCode")),
+				Username:   strings.TrimSpace(stringField(p, "username")),
+				Password:   strings.TrimSpace(stringField(p, "password")),
 			})
 		}
 		migrated := normalizePanels(panels)
@@ -420,16 +428,19 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 			jsonOut(400, map[string]any{"error": "面板数量需在 1–8 之间"})
 			return
 		}
-		// 导入未带 Code 时，按地址沿用现有 Code
+		// 导入未带凭据时，按地址沿用现有 Code / 密码
 		for i, p := range migrated {
-			if p.AccessCode != "" {
-				continue
-			}
 			for _, old := range next.Panels {
-				if old.BaseURL == p.BaseURL {
-					migrated[i].AccessCode = old.AccessCode
-					break
+				if old.BaseURL != p.BaseURL {
+					continue
 				}
+				if p.AccessCode == "" {
+					migrated[i].AccessCode = old.AccessCode
+				}
+				if p.Password == "" && p.Username == old.Username {
+					migrated[i].Password = old.Password
+				}
+				break
 			}
 		}
 		next.Panels = migrated
@@ -489,6 +500,8 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 						Label:      label,
 						BaseURL:    strings.TrimRight(strings.TrimSpace(stringField(p, "baseUrl")), "/"),
 						AccessCode: strings.TrimSpace(stringField(p, "accessCode")),
+						Username:   strings.TrimSpace(stringField(p, "username")),
+						Password:   strings.TrimSpace(stringField(p, "password")),
 					})
 				}
 				if len(panels) > 8 {
@@ -504,16 +517,19 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 				jsonOut(400, map[string]any{"error": "至少保留 1 个有效面板"})
 				return
 			}
-			// 编辑时留空的访问 Code 保留原值
+			// 编辑时留空的 Code / 密码保留原值
 			for i, p := range migrated.Panels {
-				if p.AccessCode != "" {
-					continue
-				}
 				for _, old := range next.Panels {
-					if old.BaseURL == p.BaseURL {
-						migrated.Panels[i].AccessCode = old.AccessCode
-						break
+					if old.BaseURL != p.BaseURL {
+						continue
 					}
+					if p.AccessCode == "" {
+						migrated.Panels[i].AccessCode = old.AccessCode
+					}
+					if p.Password == "" && p.Username == old.Username {
+						migrated.Panels[i].Password = old.Password
+					}
+					break
 				}
 			}
 			next.Panels = migrated.Panels

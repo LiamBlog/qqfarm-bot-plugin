@@ -378,7 +378,7 @@
     <div class="hero-kicker"><span class="dot"></span>萌卡NT · 托管 IPC 插件</div>
     <h1>让 QQ 农场的 <span class="grad">登录 Code</span><br>自己走上桥</h1>
     <p class="hero-lead">
-      萌卡NT 框架内登录的 QQ 账号，农场登录 Code 自动获取并推送到 qq-farm-bot 面板。
+      萌卡NT 框架内登录的 QQ 账号，农场登录 Code 自动获取并推送到 qq-farm-bot / 404 面板。
       内置 WebUI 管理端、多面板调度、对照诊断与动态流，一套插件管到底。
     </p>
     <div class="hero-actions">
@@ -475,10 +475,10 @@
       </div>
       <div class="flow-step">
         <div class="flow-num">3</div>
-        <h3>推送至 qq-farm-bot</h3>
+        <h3>推送至 qq-farm-bot / 404</h3>
         <p>
           先查重再写入：面板已有账号自动更新 Code 并重启会话，
-          新账号新增并启动，结果全部进动态流。
+          新账号新增并启动，已停止账号自动恢复，结果全部进动态流。
         </p>
         <div class="mono-line">POST /api/accounts → 更新 / 新增</div>
       </div>
@@ -730,9 +730,9 @@
         <div class="step-no">STEP 02</div>
         <h3>配置面板地址</h3>
         <p>
-          打开「管理插件」→ 设置，填入你的 qq-farm-bot
-          面板地址与访问 Code（如 <code>http://你的面板地址:3007</code>），
-          保存立即生效，支持多面板。
+          打开「管理插件」→ 设置，填入 qq-farm-bot 面板地址与访问 Code，
+          或 qq-farm-bot-404 的管理员用户名与密码（如
+          <code>http://你的面板地址:3007</code>），保存立即生效，支持多面板。
         </p>
       </div>
       <div class="step">

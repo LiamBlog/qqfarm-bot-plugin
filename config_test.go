@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -56,6 +57,55 @@ func TestClamp(t *testing.T) {
 	}
 	if clampRepair(0) != 30 || clampRepair(1) != 5 || clampRepair(9999) != 1440 || clampRepair(15) != 15 {
 		t.Fatal("clampRepair 边界错误")
+	}
+}
+
+func TestPrivateFilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows 不适用 POSIX 权限")
+	}
+	dir := t.TempDir()
+	LoadConfig(dir)
+	configPath := filepath.Join(dir, "config.json")
+	st, err := os.Stat(configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Mode().Perm() != 0o600 {
+		t.Fatalf("config.json 应为 0600：%v", st.Mode().Perm())
+	}
+	if err := os.Chmod(configPath, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	LoadConfig(dir)
+	if st, err = os.Stat(configPath); err != nil {
+		t.Fatal(err)
+	}
+	if st.Mode().Perm() != 0o600 {
+		t.Fatalf("旧 config.json 应在加载时收紧：%v", st.Mode().Perm())
+	}
+
+	if err := saveRemark(dir, 10001, "备注"); err != nil {
+		t.Fatal(err)
+	}
+	if st, err = os.Stat(filepath.Join(dir, "remarks.json")); err != nil {
+		t.Fatal(err)
+	}
+	if st.Mode().Perm() != 0o600 {
+		t.Fatalf("remarks.json 应为 0600：%v", st.Mode().Perm())
+	}
+
+	tokenPath := filepath.Join(dir, "farm-tokens.json")
+	if err := os.WriteFile(tokenPath, []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	b := &Bridge{dataDir: dir, tokens: map[int]string{1: "token"}}
+	b.saveTokens()
+	if st, err = os.Stat(tokenPath); err != nil {
+		t.Fatal(err)
+	}
+	if st.Mode().Perm() != 0o600 {
+		t.Fatalf("farm-tokens.json 应为 0600：%v", st.Mode().Perm())
 	}
 }
 

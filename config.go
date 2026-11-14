@@ -11,10 +11,32 @@ import (
 )
 
 // Panel 一个 farm 面板配置。
+// 旧版 qq-farm-bot 使用 AccessCode 登录；qq-farm-bot-404 使用 Username + Password。
 type Panel struct {
 	Label      string `json:"label"`
 	BaseURL    string `json:"baseUrl"`
 	AccessCode string `json:"accessCode"`
+	Username   string `json:"username,omitempty"`
+	Password   string `json:"password,omitempty"`
+}
+
+// isAdmin 判断面板是否为 qq-farm-bot-404（管理员账号登录）。
+func (p Panel) isAdmin() bool {
+	return p.Username != ""
+}
+
+func (p Panel) mode() string {
+	if p.isAdmin() {
+		return "admin"
+	}
+	return "code"
+}
+
+func (p Panel) hasAuth() bool {
+	if p.isAdmin() {
+		return p.Password != ""
+	}
+	return p.AccessCode != ""
 }
 
 // FarmConfig 推送设置（字段名与旧版 config.json 保持一致，便于原地升级）。
@@ -57,6 +79,8 @@ func normalizePanels(in []Panel) []Panel {
 		p.Label = strings.TrimSpace(p.Label)
 		p.BaseURL = strings.TrimRight(strings.TrimSpace(p.BaseURL), "/")
 		p.AccessCode = strings.TrimSpace(p.AccessCode)
+		p.Username = strings.TrimSpace(p.Username)
+		p.Password = strings.TrimSpace(p.Password)
 		if p.BaseURL == "" || seen[p.BaseURL] {
 			continue
 		}
@@ -169,6 +193,7 @@ func LoadConfig(dataDir string) *Config {
 		logf("已生成默认配置：%s（在管理端配置后生效）", cfg.Path)
 		return cfg
 	}
+	tightenPrivateFile(cfg.Path)
 	var top struct {
 		Farm rawFarm `json:"farm"`
 	}
@@ -213,7 +238,7 @@ func (c *Config) saveLocked() {
 		logf("配置序列化失败：%v", err)
 		return
 	}
-	if err := os.WriteFile(c.Path, append(data, '\n'), 0o644); err != nil {
+	if err := writePrivateFile(c.Path, append(data, '\n')); err != nil {
 		logf("配置写入失败：%v", err)
 		return
 	}
@@ -221,6 +246,20 @@ func (c *Config) saveLocked() {
 		c.mu.Lock()
 		c.modTime = st.ModTime()
 		c.mu.Unlock()
+	}
+}
+
+// writePrivateFile 写入仅当前用户可读写的文件，并收紧已有文件的权限。
+func writePrivateFile(path string, data []byte) error {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600)
+}
+
+func tightenPrivateFile(path string) {
+	if path != "" {
+		_ = os.Chmod(path, 0o600)
 	}
 }
 
@@ -243,6 +282,7 @@ func (c *Config) ReloadIfChanged() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	tightenPrivateFile(c.Path)
 	var top struct {
 		Farm rawFarm `json:"farm"`
 	}
@@ -274,6 +314,7 @@ func loadRemarks(dataDir string) map[string]string {
 	if err != nil {
 		return out
 	}
+	tightenPrivateFile(path)
 	_ = json.Unmarshal(raw, &out)
 	return out
 }
@@ -292,5 +333,5 @@ func saveRemark(dataDir string, selfID int64, remark string) error {
 		remarks[key] = value
 	}
 	data, _ := json.MarshalIndent(remarks, "", "  ")
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	return writePrivateFile(path, append(data, '\n'))
 }

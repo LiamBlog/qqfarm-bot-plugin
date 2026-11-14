@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -72,6 +73,12 @@ type Bridge struct {
 	lastAutoPush map[string]int64
 	panelState   map[string]bool
 
+	loginMu     sync.Mutex
+	loginFail   map[int]loginFailure
+	authBlocked map[int]string
+
+	panelWarn map[string]string
+
 	timerMu   sync.Mutex
 	stopChans []chan struct{}
 
@@ -97,6 +104,9 @@ func newBridge(cfg *Config, ipc *IPC, dataDir string) *Bridge {
 		pushTimes:    map[string]int64{},
 		lastAutoPush: map[string]int64{},
 		panelState:   map[string]bool{},
+		loginFail:    map[int]loginFailure{},
+		authBlocked:  map[int]string{},
+		panelWarn:    map[string]string{},
 		pushing:      map[string]bool{},
 		retrying:     map[string]bool{},
 	}
@@ -110,7 +120,9 @@ func (b *Bridge) loadState() {
 	if b.dataDir == "" {
 		return
 	}
-	if raw, err := os.ReadFile(filepath.Join(b.dataDir, "farm-tokens.json")); err == nil {
+	tokenPath := filepath.Join(b.dataDir, "farm-tokens.json")
+	if raw, err := os.ReadFile(tokenPath); err == nil {
+		tightenPrivateFile(tokenPath)
 		var d struct {
 			Tokens map[string]string `json:"tokens"`
 		}
@@ -122,7 +134,9 @@ func (b *Bridge) loadState() {
 			}
 		}
 	}
-	if raw, err := os.ReadFile(filepath.Join(b.dataDir, "activity.json")); err == nil {
+	activityPath := filepath.Join(b.dataDir, "activity.json")
+	if raw, err := os.ReadFile(activityPath); err == nil {
+		tightenPrivateFile(activityPath)
 		var d struct {
 			Activity  []Activity       `json:"activity"`
 			PushTimes map[string]int64 `json:"pushTimes"`
@@ -150,7 +164,7 @@ func (b *Bridge) saveTokens() {
 	}
 	b.mu.Unlock()
 	data, _ := json.MarshalIndent(map[string]any{"tokens": tokens}, "", "  ")
-	_ = os.WriteFile(filepath.Join(b.dataDir, "farm-tokens.json"), append(data, '\n'), 0o644)
+	_ = writePrivateFile(filepath.Join(b.dataDir, "farm-tokens.json"), append(data, '\n'))
 }
 
 func (b *Bridge) saveActivity() {
@@ -164,13 +178,17 @@ func (b *Bridge) saveActivity() {
 	}{append([]Activity(nil), b.activity...), b.pushTimes}
 	b.mu.Unlock()
 	data, _ := json.MarshalIndent(payload, "", "  ")
-	_ = os.WriteFile(filepath.Join(b.dataDir, "activity.json"), append(data, '\n'), 0o644)
+	_ = writePrivateFile(filepath.Join(b.dataDir, "activity.json"), append(data, '\n'))
 }
 
 func (b *Bridge) clearTokens() {
+	b.loginMu.Lock()
+	defer b.loginMu.Unlock()
 	b.mu.Lock()
 	b.tokens = map[int]string{}
 	b.mu.Unlock()
+	b.loginFail = map[int]loginFailure{}
+	b.authBlocked = map[int]string{}
 	if b.dataDir != "" {
 		_ = os.Remove(filepath.Join(b.dataDir, "farm-tokens.json"))
 	}
@@ -231,12 +249,93 @@ func (b *Bridge) activeIndex(panels []Panel) int {
 	return i
 }
 
+const loginRetryCooldown = 60 * time.Second
+
+type loginFailure struct {
+	until time.Time
+	msg   string
+}
+
+// authError 表示面板明确拒绝了登录凭据；继续自动重试可能触发面板锁定。
+type authError struct{ msg string }
+
+func (e authError) Error() string { return e.msg }
+
+func isAuthError(err error) bool {
+	var target authError
+	return errors.As(err, &target)
+}
+
+func (b *Bridge) setPanelWarning(baseURL, msg string) {
+	b.stateMu.Lock()
+	defer b.stateMu.Unlock()
+	if msg == "" {
+		delete(b.panelWarn, baseURL)
+		return
+	}
+	b.panelWarn[baseURL] = msg
+}
+
+func (b *Bridge) panelWarning(baseURL string) string {
+	b.stateMu.Lock()
+	defer b.stateMu.Unlock()
+	return b.panelWarn[baseURL]
+}
+
+func (b *Bridge) authBlockedMessage(index int) string {
+	b.loginMu.Lock()
+	defer b.loginMu.Unlock()
+	return b.authBlocked[index]
+}
+
+// login 串行登录：并发推送只登录一次；失败后 60 秒内复用错误，避免连续失败触发 404 面板 5 次锁定。
 func (b *Bridge) login(index int) (string, error) {
+	b.loginMu.Lock()
+	defer b.loginMu.Unlock()
+
+	b.mu.Lock()
+	if token := b.tokens[index]; token != "" {
+		b.mu.Unlock()
+		return token, nil
+	}
+	b.mu.Unlock()
+	if msg := b.authBlocked[index]; msg != "" {
+		return "", errors.New(msg + "（自动推送已暂停，修复后点「测试」恢复）")
+	}
+	if fail, ok := b.loginFail[index]; ok && time.Now().Before(fail.until) {
+		return "", errors.New(fail.msg)
+	}
+
 	panels := b.Panels()
 	if index < 0 || index >= len(panels) {
 		return "", errors.New("面板不存在")
 	}
-	panel := panels[index]
+	token, err := b.loginPanel(panels[index])
+	if err != nil {
+		b.loginFail[index] = loginFailure{until: time.Now().Add(loginRetryCooldown), msg: err.Error()}
+		if isAuthError(err) {
+			b.authBlocked[index] = err.Error()
+		}
+		return "", err
+	}
+	delete(b.loginFail, index)
+	delete(b.authBlocked, index)
+	b.mu.Lock()
+	b.tokens[index] = token
+	b.mu.Unlock()
+	b.saveTokens()
+	return token, nil
+}
+
+func (b *Bridge) loginPanel(panel Panel) (string, error) {
+	if panel.isAdmin() {
+		return b.loginAdmin(panel)
+	}
+	return b.loginCode(panel)
+}
+
+// loginCode 旧版 qq-farm-bot：访问 Code 换 farm_admin_session Cookie。
+func (b *Bridge) loginCode(panel Panel) (string, error) {
 	if panel.AccessCode == "" {
 		return "", fmt.Errorf("面板「%s」未配置访问 Code", panel.Label)
 	}
@@ -256,8 +355,8 @@ func (b *Bridge) login(index int) (string, error) {
 		SetupRequired bool   `json:"setupRequired"`
 	}
 	_ = json.NewDecoder(res.Body).Decode(&body)
-	if res.StatusCode == 409 || body.SetupRequired {
-		return "", fmt.Errorf("面板「%s」尚未设置访问 Code，请先在该面板完成首次设置", panel.Label)
+	if res.StatusCode == http.StatusConflict || body.SetupRequired {
+		return "", authError{fmt.Sprintf("面板「%s」尚未设置访问 Code，请先在该面板完成首次设置", panel.Label)}
 	}
 	token := ""
 	for _, c := range res.Cookies() {
@@ -271,17 +370,83 @@ func (b *Bridge) login(index int) (string, error) {
 		if reason == "" {
 			reason = fmt.Sprintf("HTTP %d", res.StatusCode)
 		}
-		return "", fmt.Errorf("面板「%s」登录失败：%s", panel.Label, reason)
+		msg := fmt.Sprintf("面板「%s」登录失败：%s", panel.Label, reason)
+		if res.StatusCode >= 400 && res.StatusCode < 500 && res.StatusCode != http.StatusRequestTimeout {
+			return "", authError{msg}
+		}
+		return "", errors.New(msg)
 	}
-	b.mu.Lock()
-	b.tokens[index] = token
-	b.mu.Unlock()
-	b.saveTokens()
+	b.setPanelWarning(panel.BaseURL, "")
 	return token, nil
+}
+
+// loginAdmin qq-farm-bot-404：管理员用户名 + 密码换 x-admin-token（令牌在响应体内）。
+func (b *Bridge) loginAdmin(panel Panel) (string, error) {
+	if panel.Password == "" {
+		return "", fmt.Errorf("面板「%s」未配置管理员密码", panel.Label)
+	}
+	payload, _ := json.Marshal(map[string]string{"username": panel.Username, "password": panel.Password})
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, panel.BaseURL+"/api/login", bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := b.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("面板「%s」请求失败：%v", panel.Label, err)
+	}
+	defer res.Body.Close()
+	var body struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+		Data  struct {
+			Token              string `json:"token"`
+			MustChangePassword bool   `json:"mustChangePassword"`
+		} `json:"data"`
+	}
+	_ = json.NewDecoder(res.Body).Decode(&body)
+	if res.StatusCode == http.StatusLocked {
+		return "", authError{fmt.Sprintf("面板「%s」管理员登录已锁定，请稍后重试或直接在该面板修改密码", panel.Label)}
+	}
+	if res.StatusCode == http.StatusTooManyRequests {
+		return "", authError{fmt.Sprintf("面板「%s」登录请求过于频繁，请稍后重试", panel.Label)}
+	}
+	if res.StatusCode/100 != 2 || !body.OK || body.Data.Token == "" {
+		reason := body.Error
+		if reason == "" {
+			reason = fmt.Sprintf("HTTP %d", res.StatusCode)
+		}
+		msg := fmt.Sprintf("面板「%s」登录失败：%s", panel.Label, reason)
+		if res.StatusCode >= 400 && res.StatusCode < 500 && res.StatusCode != http.StatusRequestTimeout {
+			return "", authError{msg}
+		}
+		if body.Error != "" {
+			return "", authError{msg}
+		}
+		return "", errors.New(msg)
+	}
+	if body.Data.MustChangePassword {
+		b.setPanelWarning(panel.BaseURL, "面板仍在使用默认管理员密码，请尽快修改")
+		logf("面板「%s」仍在使用默认管理员密码，建议尽快在面板内修改", panel.Label)
+	} else {
+		b.setPanelWarning(panel.BaseURL, "")
+	}
+	return body.Data.Token, nil
 }
 
 func (b *Bridge) farmFetch(index int, method, path string, payload any) (map[string]any, error) {
 	return b.farmFetchInternal(index, method, path, payload, false, false)
+}
+
+// farmFetchForce 清除登录失败缓存与旧 token，用于「测试」时强制重新登录。
+func (b *Bridge) farmFetchForce(index int, method, path string, payload any) (map[string]any, error) {
+	b.loginMu.Lock()
+	delete(b.loginFail, index)
+	delete(b.authBlocked, index)
+	b.mu.Lock()
+	delete(b.tokens, index)
+	b.mu.Unlock()
+	b.loginMu.Unlock()
+	return b.farmFetch(index, method, path, payload)
 }
 
 func (b *Bridge) farmFetchInternal(index int, method, path string, payload any, retried, netRetried bool) (map[string]any, error) {
@@ -419,24 +584,79 @@ func (b *Bridge) PushAccount(bot Bot, index int) (map[string]any, error) {
 		return nil, err
 	}
 	uin := strconv.FormatInt(bot.SelfID, 10)
+	name := bot.Nickname
+	if name == "" {
+		name = "QQ" + uin
+	}
 	var existingID any
 	existingCode := ""
+	existingRunning := false
+	existingName := ""
+	nameConflict := false
 	if data, ok := list["data"].(map[string]any); ok {
 		if arr, ok := data["accounts"].([]any); ok {
+			var byName map[string]any
 			for _, item := range arr {
 				acc, _ := item.(map[string]any)
 				qq := fmt.Sprintf("%v", acc["qq"])
 				u := fmt.Sprintf("%v", acc["uin"])
+				accName := fmt.Sprintf("%v", acc["name"])
 				if qq == uin || u == uin {
 					existingID = acc["id"]
 					existingCode = fmt.Sprintf("%v", acc["code"])
+					existingRunning, _ = acc["running"].(bool)
+					if accName != "<nil>" {
+						existingName = strings.TrimSpace(accName)
+					}
 					break
+				}
+				// 404 面板以备注名识别账号：同名但已有其他 QQ 归属时不能复用，否则会覆盖对方
+				if panel.isAdmin() && accName == name {
+					if (u == "" || u == "<nil>") && (qq == "" || qq == "<nil>") {
+						byName = acc
+					} else {
+						nameConflict = true
+					}
+				}
+			}
+			if existingID == nil && byName != nil {
+				existingID = byName["id"]
+				existingCode = fmt.Sprintf("%v", byName["code"])
+				existingRunning, _ = byName["running"].(bool)
+				if n := fmt.Sprintf("%v", byName["name"]); n != "<nil>" {
+					existingName = strings.TrimSpace(n)
 				}
 			}
 		}
 	}
+	if panel.isAdmin() {
+		switch {
+		case existingName != "":
+			// 保留面板内已有备注，避免定时推送覆盖用户改名
+			name = existingName
+		case existingID == nil && nameConflict:
+			name = fmt.Sprintf("%s（%s）", name, uin)
+		}
+	}
 	// Code 未变化时不重复 POST：避免无谓重启面板会话
 	if existingID != nil && strings.TrimSpace(existingCode) == strings.TrimSpace(code) && existingCode != "" && existingCode != "<nil>" {
+		// 404 面板更新已停止账号时不会自动启动，这里直接补启动
+		if panel.isAdmin() && !existingRunning {
+			if err := b.startAccount(index, existingID); err != nil {
+				return nil, err
+			}
+			b.mu.Lock()
+			b.pushTimes[uin] = time.Now().UnixMilli()
+			b.mu.Unlock()
+			b.saveActivity()
+			ok := true
+			nick := ""
+			if bot.Nickname != "" {
+				nick = "（" + bot.Nickname + "）"
+			}
+			b.LogActivity("push", fmt.Sprintf("%s%s → %s：Code 未变化，已启动账号", uin, nick, panel.Label), "", &ok)
+			return map[string]any{"uin": uin, "updated": false, "skipped": true, "started": true, "panel": panel.Label}, nil
+		}
 		b.mu.Lock()
 		b.pushTimes[uin] = time.Now().UnixMilli()
 		b.mu.Unlock()
@@ -449,26 +669,20 @@ func (b *Bridge) PushAccount(bot Bot, index int) (map[string]any, error) {
 		b.LogActivity("push", fmt.Sprintf("%s%s → %s：Code 未变化，已跳过", uin, nick, panel.Label), "", &ok)
 		return map[string]any{"uin": uin, "updated": false, "skipped": true, "panel": panel.Label}, nil
 	}
-	name := bot.Nickname
-	if name == "" {
-		name = "QQ" + uin
-	}
-	payload := map[string]any{
-		"code":           code,
-		"uin":            uin,
-		"qq":             uin,
-		"name":           name,
-		"platform":       "qq",
-		"loginType":      "manual",
-		"startAfterSave": true,
-	}
-	if existingID != nil {
-		payload["id"] = existingID
-	}
+	payload := buildAccountPayload(panel, code, uin, name, existingID)
 	if _, err := b.farmFetch(index, http.MethodPost, "/api/accounts", payload); err != nil {
 		return nil, err
 	}
 	updated := existingID != nil
+	started := !updated
+	startNote := ""
+	if panel.isAdmin() && updated && !existingRunning {
+		if err := b.startAccount(index, existingID); err != nil {
+			startNote = "，启动失败：" + err.Error()
+		} else {
+			started = true
+		}
+	}
 	b.mu.Lock()
 	b.pushTimes[uin] = time.Now().UnixMilli()
 	b.mu.Unlock()
@@ -477,13 +691,53 @@ func (b *Bridge) PushAccount(bot Bot, index int) (map[string]any, error) {
 	action := "Code 已更新"
 	if !updated {
 		action = "新增账号并启动"
+	} else if started {
+		action = "Code 已更新并启动"
 	}
+	action += startNote
 	nick := ""
 	if bot.Nickname != "" {
 		nick = "（" + bot.Nickname + "）"
 	}
 	b.LogActivity("push", fmt.Sprintf("%s%s → %s：%s", uin, nick, panel.Label, action), "", &ok)
-	return map[string]any{"uin": uin, "updated": updated, "started": !updated, "panel": panel.Label}, nil
+	return map[string]any{"uin": uin, "updated": updated, "started": started, "panel": panel.Label}, nil
+}
+
+// buildAccountPayload 按面板类型组装账号写入参数：
+// 旧版依赖 startAfterSave，404 更新已停止账号时需单独调用 start。
+func buildAccountPayload(panel Panel, code, uin, name string, existingID any) map[string]any {
+	payload := map[string]any{
+		"code": code, "uin": uin, "qq": uin, "name": name, "platform": "qq",
+	}
+	if !panel.isAdmin() {
+		payload["loginType"] = "manual"
+		payload["startAfterSave"] = true
+	}
+	if existingID != nil {
+		payload["id"] = existingID
+	}
+	return payload
+}
+
+func (b *Bridge) startAccount(index int, id any) error {
+	accountID := accountIDString(id)
+	if accountID == "" {
+		return errors.New("面板账号 ID 缺失")
+	}
+	_, err := b.farmFetch(index, http.MethodPost, "/api/accounts/"+url.PathEscape(accountID)+"/start", nil)
+	return err
+}
+
+func accountIDString(v any) string {
+	switch id := v.(type) {
+	case string:
+		return strings.TrimSpace(id)
+	case float64:
+		return strconv.FormatInt(int64(id), 10)
+	case json.Number:
+		return id.String()
+	}
+	return strings.TrimSpace(fmt.Sprintf("%v", v))
 }
 
 func (b *Bridge) PushAllOnline(index int) []map[string]any {
@@ -588,6 +842,9 @@ func (b *Bridge) retryPushLater(bot Bot, index int) {
 	}()
 
 	for attempt, wait := range []time.Duration{30 * time.Second, 2 * time.Minute, 5 * time.Minute} {
+		if b.authBlockedMessage(index) != "" {
+			return
+		}
 		time.Sleep(wait)
 		if _, err := b.PushAccount(bot, index); err == nil {
 			if attempt > 0 {
@@ -607,7 +864,7 @@ func (b *Bridge) TestPanel(index int) (map[string]any, error) {
 		return nil, errors.New("目标面板不存在")
 	}
 	started := time.Now()
-	list, err := b.farmFetch(index, http.MethodGet, "/api/accounts", nil)
+	list, err := b.farmFetchForce(index, http.MethodGet, "/api/accounts", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -625,7 +882,7 @@ func (b *Bridge) TestPanel(index int) (map[string]any, error) {
 	}
 	return map[string]any{
 		"panel": panels[index].Label, "ok": true, "accounts": accounts, "running": running,
-		"ms": time.Since(started).Milliseconds(),
+		"ms": time.Since(started).Milliseconds(), "warning": b.panelWarning(panels[index].BaseURL),
 	}, nil
 }
 
@@ -639,8 +896,10 @@ func (b *Bridge) PanelStatus() []map[string]any {
 			defer wg.Done()
 			item := map[string]any{
 				"label": panel.Label, "baseUrl": panel.BaseURL,
-				"hasCode": panel.AccessCode != "", "ok": false, "error": "", "ms": 0,
-				"accounts": []any{},
+				"hasCode": panel.AccessCode != "", "mode": panel.mode(),
+				"username": panel.Username, "hasPassword": panel.Password != "",
+				"hasAuth": panel.hasAuth(), "ok": false, "error": "", "ms": 0,
+				"warning": b.panelWarning(panel.BaseURL), "accounts": []any{},
 			}
 			started := time.Now()
 			list, err := b.farmFetch(i, http.MethodGet, "/api/accounts", nil)
@@ -677,6 +936,10 @@ func (b *Bridge) PanelStatus() []map[string]any {
 					}
 				}
 				item["accounts"] = accounts
+			}
+			if msg := b.authBlockedMessage(i); msg != "" {
+				item["authBlocked"] = true
+				item["authError"] = msg
 			}
 			b.stateMu.Lock()
 			previous, seen := b.panelState[panel.BaseURL]
@@ -1045,7 +1308,7 @@ func (b *Bridge) StartConfigWatcher() {
 				continue
 			}
 			after := b.Panels()
-			if !samePanelURLs(before, after) {
+			if !samePanelURLs(before, after) || !samePanelAuth(before, after) {
 				b.clearTokens()
 			}
 			b.StartTimers()
@@ -1060,6 +1323,19 @@ func samePanelURLs(a, b []Panel) bool {
 	}
 	for i := range a {
 		if a[i].BaseURL != b[i].BaseURL {
+			return false
+		}
+	}
+	return true
+}
+
+// samePanelAuth 判断面板登录凭据是否未变；变更后需重新登录。
+func samePanelAuth(a, b []Panel) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].AccessCode != b[i].AccessCode || a[i].Username != b[i].Username || a[i].Password != b[i].Password {
 			return false
 		}
 	}
