@@ -931,7 +931,7 @@
   }
 
   /* ================= 3.7.12 现代后台风（侧栏 + 顶栏 + 渐变卡片） ================= */
-  .side-brand, .crumb, .avatar, .page-tabs { display: none; }
+  .side-brand, .crumb, .avatar { display: none; }
   .greet {
     display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
     margin: 16px 0 0; padding: 18px 22px; border-radius: 16px;
@@ -1019,15 +1019,11 @@
     }
     .tab.active::before { display: none; }
 
-    header {
-      margin: 0 -30px; padding: 12px 30px; border-radius: 0;
-      background: color-mix(in srgb, var(--bg) 84%, transparent);
-    }
     .logo, .title-block { display: none; }
-    .crumb { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+    .crumb { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .crumb .sep { color: var(--faint); }
     .crumb strong { color: var(--text); font-weight: 600; }
-    .head-actions { margin-left: auto; }
+    .head-actions { margin-left: auto; flex-wrap: wrap; gap: 10px; }
     .avatar {
       display: flex; align-items: center; gap: 9px; padding-left: 12px;
       margin-left: 4px; border-left: 1px solid var(--line);
@@ -1037,19 +1033,6 @@
       background: linear-gradient(135deg, #ff8a5c, #ff5f8f); color: #fff; font-size: 13px; font-weight: 700;
     }
     .avatar .an { font-size: 12.5px; color: var(--muted); }
-
-    .page-tabs { display: flex; gap: 8px; margin: 16px 0 0; overflow-x: auto; padding-bottom: 2px; }
-    .ptab {
-      display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 9px;
-      border: 1px solid var(--line); background: var(--card); color: var(--muted);
-      font-size: 12.5px; font-weight: 500; cursor: pointer; transition: .15s;
-    }
-    .ptab:hover { color: var(--text); border-color: var(--line2); }
-    .ptab.active {
-      color: var(--violet); border-color: color-mix(in srgb, var(--violet) 34%, var(--line));
-      background: color-mix(in srgb, var(--violet) 8%, transparent);
-    }
-    .ptab svg { width: 14px; height: 14px; }
   }
 
   /* ================= 3.7.13 布局细节优化 ================= */
@@ -1175,21 +1158,6 @@
       <svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 3.6 15a1.7 1.7 0 0 0-1.55-1H2a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 3.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 8 4.6h.09A1.7 1.7 0 0 0 9 3.05V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>
       <span>设置</span></button>
   </nav>
-
-  <div class="page-tabs" id="pageTabs" aria-label="页面标签">
-    <button class="ptab active" data-ptab="accounts">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21V12h6v9"/></svg>首页
-    </button>
-    <button class="ptab" data-ptab="panels">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>面板
-    </button>
-    <button class="ptab" data-ptab="activity">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>动态
-    </button>
-    <button class="ptab" data-ptab="settings">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 3.6 15a1.7 1.7 0 0 0-1.55-1H2a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 3.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 8 4.6h.09A1.7 1.7 0 0 0 9 3.05V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>设置
-    </button>
-  </div>
 
   <section class="tab-panel active" id="panel-accounts" role="tabpanel" aria-labelledby="tab-accounts" data-panel="accounts">
   <section class="greet" id="greet" aria-label="今日概览">
@@ -1488,9 +1456,8 @@ set('btnTheme', b => b.onclick = () => {
 /* ---------- 标签页 ---------- */
 const TAB_KEY = 'mengka-admin-tab'
 function showTab(name) {
-  const TAB_TITLES = { accounts: '首页', panels: 'farm 面板', activity: '推送动态', settings: '设置' }
-  document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.ptab === name))
-  set('crumbNow', el => el.textContent = TAB_TITLES[name] || '首页')
+  const TAB_TITLES = { accounts: '账号管理', panels: 'farm 面板', activity: '推送动态', settings: '设置' }
+  set('crumbNow', el => el.textContent = TAB_TITLES[name] || '账号管理')
   document.querySelectorAll('.tab').forEach(t => {
     const on = t.dataset.tab === name
     t.classList.toggle('active', on)
@@ -1501,7 +1468,6 @@ function showTab(name) {
   localStorage.setItem(TAB_KEY, name)
 }
 document.querySelectorAll('.tab').forEach(t => t.onclick = () => showTab(t.dataset.tab))
-document.querySelectorAll('.ptab').forEach(t => t.onclick = () => showTab(t.dataset.ptab))
 // 标签页键盘导航：左右方向键 / Home / End
 $('tabs')?.addEventListener('keydown', e => {
   if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return
