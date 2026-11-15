@@ -1057,15 +1057,41 @@
   .avatar .an { white-space: nowrap; }
   @media (min-width: 1024px) {
     .avatar {
-      flex: none; display: inline-flex; align-items: center; gap: 8px;
-      padding: 4px 11px 4px 4px; margin-left: 8px;
+      flex: none; display: inline-flex; align-items: center; gap: 9px;
+      padding: 4px 12px 4px 4px; margin-left: 12px;
       border: 1px solid var(--line); border-radius: 999px; background: var(--card);
-      transition: background .15s, border-color .15s;
+      transition: background .15s, border-color .15s, box-shadow .15s;
     }
-    .avatar:hover { background: var(--hover); border-color: var(--line2); }
-    .avatar::after { content: "▾"; font-size: 9px; color: var(--faint); }
-    .avatar .av { width: 30px; height: 30px; border-radius: 50%; box-shadow: none; }
-    .avatar .an { color: var(--text); font-weight: 500; line-height: 1.2; }
+    .avatar:hover { background: var(--hover); border-color: var(--line2); box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+    .avatar::after { content: "▾"; font-size: 9px; color: var(--faint); margin-left: 1px; }
+    .avatar .av {
+      width: 32px; height: 32px; min-width: 32px; flex: none; border-radius: 50%;
+      display: grid; place-items: center;
+      background: linear-gradient(140deg, #ff9a62, #ff5f8f); color: #fff;
+      box-shadow: 0 3px 9px -2px rgba(255,95,143,.55);
+    }
+    .avatar .av svg { width: 17px; height: 17px; }
+    .avatar .an { color: var(--text); font-weight: 600; font-size: 13px; line-height: 1.2; }
+  }
+  @media (min-width: 1024px) and (max-width: 1279px) {
+    .avatar { padding: 4px; gap: 0; margin-left: 8px; }
+    .avatar .an, .avatar::after { display: none; }
+  }
+
+  /* 3.7.15 顶栏改为与内容列对齐的悬浮工具条，消除右侧溢出 */
+  body { overflow-x: clip; }
+  @media (min-width: 1024px) {
+    header {
+      margin: 0; padding: 10px 16px;
+      border: 1px solid var(--line); border-radius: var(--r);
+      background: color-mix(in srgb, var(--card) 86%, transparent);
+      box-shadow: 0 8px 26px -20px rgba(77,51,66,.4);
+    }
+    .crumb { flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .head-status { flex: none; }
+  }
+  @media (min-width: 1024px) and (max-width: 1279px) {
+    .countdown { display: none; }
   }
 
   /* 面板卡片：桌面两列，操作按钮单行，账号胶囊自动换行 */
@@ -1120,8 +1146,8 @@
         <span class="btn-t">推送全部</span>
       </button>
       </div>
-      <div class="avatar" title="当前管理员">
-        <div class="av">管</div><span class="an">管理员</span>
+      <div class="avatar" title="当前管理员" role="button" tabindex="0">
+        <div class="av" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><span class="an">管理员</span>
       </div>
     </div>
   </header>
