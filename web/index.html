@@ -297,7 +297,10 @@
   .panel-form { border:1px dashed var(--line2);border-radius:12px;padding:13px;margin-top:14px;display:none;flex-wrap:wrap;gap:10px; }
   .panel-form.show { display:flex; }
   .panel-form .row { flex:1 1 260px; display:grid;grid-template-columns:72px 1fr;gap:8px;align-items:center; }
+  .panel-form .row.hide { display:none; }
   .panel-form label { color:var(--muted);font-size:12px; }
+  .panel-form select { background:var(--bg2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:8px 11px;width:100%;font-size:13px;outline:none;cursor:pointer; }
+  .panel-form select:focus { border-color:var(--violet); }
   .panel-form .btns { width:100%; display:flex;justify-content:flex-end;gap:8px; }
 
   .form { display:grid;grid-template-columns:118px 1fr;gap:12px 14px;align-items:center; }
@@ -782,16 +785,25 @@
       <div class="panel-form" id="panelForm">
         <div class="row"><label for="pf_label">名称</label><input type="text" id="pf_label" placeholder="FARM2"></div>
         <div class="row"><label for="pf_baseUrl">地址</label><input type="text" id="pf_baseUrl" placeholder="http://host:3007"></div>
-        <div class="row"><label for="pf_accessCode">访问 Code</label><input type="password" id="pf_accessCode" autocomplete="new-password" placeholder="旧版 qq-farm-bot 的访问 Code（编辑可留空保持不变）"></div>
-        <div class="row"><label for="pf_username">404 用户名</label><input type="text" id="pf_username" autocomplete="username" spellcheck="false" placeholder="qq-farm-bot-404 管理员用户名；旧版面板留空"></div>
-        <div class="row"><label for="pf_password">404 密码</label><input type="password" id="pf_password" autocomplete="new-password" placeholder="仅 404 版面板需要；编辑可留空保持不变"></div>
+        <div class="row"><label for="pf_authMode">认证方式</label>
+          <select id="pf_authMode">
+            <option value="auto">自动识别</option>
+            <option value="admin">404 密码登录</option>
+            <option value="token">404 我的 Token</option>
+            <option value="code">旧版访问码</option>
+          </select>
+        </div>
+        <div class="row" id="row_accessCode"><label for="pf_accessCode">访问 Code</label><input type="password" id="pf_accessCode" autocomplete="new-password" placeholder="旧版 qq-farm-bot 的访问 Code（编辑可留空保持不变）"></div>
+        <div class="row" id="row_username"><label for="pf_username">404 用户名</label><input type="text" id="pf_username" autocomplete="username" spellcheck="false" placeholder="qq-farm-bot-404 管理员用户名；旧版面板留空"></div>
+        <div class="row" id="row_password"><label for="pf_password">404 密码</label><input type="password" id="pf_password" autocomplete="new-password" placeholder="仅 404 版面板需要；编辑可留空保持不变"></div>
+        <div class="row" id="row_token"><label for="pf_token">我的 Token</label><input type="password" id="pf_token" autocomplete="off" spellcheck="false" placeholder="粘贴面板左下角「我的 Token」；免密码直连"></div>
         <div class="btns">
           <button class="mini-btn" id="pfCancel">取消</button>
           <button class="btn primary" id="pfSave" style="padding:6px 14px">保存</button>
         </div>
       </div>
       <div class="faint" style="margin-top:12px">★ 为当前推送目标（上线 / 定时刷新 / 推送全部均发往此面板）<br>
-        旧版 qq-farm-bot：填写访问 Code；qq-farm-bot-404：填写管理员用户名和密码（首次默认 admin / admin，请先在面板内改密）。</div>
+        旧版 qq-farm-bot：填写访问 Code；qq-farm-bot-404：填管理员用户名密码，或直接粘贴面板左下角「我的 Token」。Token 随面板重启/退出登录失效，失效后重新粘贴即可。</div>
     </div>
 
     <div class="card">
@@ -1628,11 +1640,12 @@ function renderPanels(s){
       :`<span class="status-chip err" title="${esc(p.error||'不可达')}"><span class="dot"></span>${esc((p.error||'不可达').slice(0,20))}</span>`
     const accs=p.accounts||[], stopped=accs.filter(a=>a.running===false).length
     const accSummary=`<span class="pill ${stopped?'y':'n'}" title="面板内账号${stopped?`，其中 ${stopped} 个已停止`:''}">${accs.length} 账号${stopped?` · ${stopped} 停止`:''}</span>`
-    const is404=p.mode==='admin'
-    const modeChip=is404
-      ?`<span class="pill n mode-chip" title="qq-farm-bot-404 管理员登录${p.username?'：'+esc(p.username):''}">管理员</span>`
-      :`<span class="pill n mode-chip" title="旧版 qq-farm-bot：访问 Code 登录">访问码</span>`
-    const authWarn=p.hasAuth===false?`<span class="pill y mode-chip">未配置${is404?'密码':'访问 Code'}</span>`:''
+    const modeChip=p.mode==='token'
+      ?`<span class="pill n mode-chip" title="qq-farm-bot-404：使用「我的 Token」直连">Token</span>`
+      :(p.mode==='admin'
+        ?`<span class="pill n mode-chip" title="qq-farm-bot-404 管理员登录${p.username?'：'+esc(p.username):''}">管理员</span>`
+        :`<span class="pill n mode-chip" title="旧版 qq-farm-bot：访问 Code 登录">访问码</span>`)
+    const authWarn=p.hasAuth===false?`<span class="pill y mode-chip">未配置${p.mode==='token'?' Token':(p.mode==='admin'?'密码':'访问 Code')}</span>`:''
     const codeText=a=>{const c=String(a.code||'');return c?(c.length>8?c.slice(0,8)+'…':c):'✓'}
     const accChips=(p.accounts||[]).slice(0,8).map(a=>
       `<span class="pill ${a.running===false?'y':(a.code?'g':'n')}" title="${esc(a.name||a.uin)}${a.running===false?'（已停止）':(a.running?'（运行中）':'')}">${esc(a.uin)} · ${esc(codeText(a))}</span>`).join('')
@@ -1712,28 +1725,53 @@ async function panelAction(act, i){
     $('pf_accessCode').placeholder='留空保持原 Code 不变'
     $('pf_username').value=p.username||''
     $('pf_password').value=''
-    $('pf_password').placeholder=p.username?'留空保持原密码不变':'仅 404 版面板需要'
+    $('pf_password').placeholder=p.hasPassword?'留空保持原密码不变':'仅 404 版面板需要'
+    $('pf_token').value=''
+    $('pf_token').placeholder=p.hasToken?'已保存 Token，留空保持不变':'粘贴面板左下角「我的 Token」'
+    const mode=p.authMode||p.mode||'auto'
+    set('pf_authMode', e => e.value=['auto','admin','token','code'].includes(mode)?mode:'auto')
+    syncPanelAuth()
     $('panelForm').classList.add('show')
   }
 }
 
+function syncPanelAuth(){
+  const mode=$('pf_authMode')?.value||'auto'
+  const show=(id,on)=>{const el=$(id); if(el) el.classList.toggle('hide',!on)}
+  show('row_accessCode', mode==='auto'||mode==='code')
+  show('row_username', mode==='auto'||mode==='admin')
+  show('row_password', mode==='auto'||mode==='admin')
+  show('row_token', mode==='auto'||mode==='token')
+}
+set('pf_authMode', el=>el.onchange=syncPanelAuth)
+
 set('btnAddPanel', b => b.onclick=()=>{
   editingPanel=-2
-  for(const id of ['pf_label','pf_baseUrl','pf_accessCode','pf_username','pf_password']) set(id,e=>e.value='')
+  for(const id of ['pf_label','pf_baseUrl','pf_accessCode','pf_username','pf_password','pf_token']) set(id,e=>e.value='')
   set('pf_accessCode', e => e.placeholder='旧版 qq-farm-bot 的访问 Code')
   set('pf_password', e => e.placeholder='仅 404 版面板需要')
+  set('pf_token', e => e.placeholder='粘贴面板左下角「我的 Token」')
+  set('pf_authMode', e => e.value='auto')
+  syncPanelAuth()
   set('panelForm', e => e.classList.add('show'))
 })
 set('pfCancel', b => b.onclick=()=>set('panelForm', e => e.classList.remove('show')))
 set('pfSave', b => b.onclick=async ()=>{
   const label=($('pf_label')?.value||'').trim(), baseUrl=($('pf_baseUrl')?.value||'').trim()
-  const accessCode=($('pf_accessCode')?.value||'').trim(), username=($('pf_username')?.value||'').trim(), password=($('pf_password')?.value||'').trim()
+  const accessCode=($('pf_accessCode')?.value||'').trim(), username=($('pf_username')?.value||'').trim()
+  const password=($('pf_password')?.value||'').trim(), token=($('pf_token')?.value||'').trim()
   if(!/^https?:\/\//.test(baseUrl)) return toast('地址需以 http:// 或 https:// 开头',false)
-  if(editingPanel===-2 && !username && !accessCode) return toast('请填写访问 Code，或 404 面板的管理员用户名和密码',false)
-  if(editingPanel===-2 && username && !password) return toast('404 面板需填写管理员密码',false)
   const meta=(STATE?.config?.panels||[]).map(p=>({...p}))
-  if(editingPanel>=0 && username && !password && username!==(meta[editingPanel]?.username||'')) return toast('修改 404 用户名后需重新填写密码',false)
-  const item={label:label||`FARM${meta.length+1}`,baseUrl,accessCode,username,password}
+  const old=editingPanel>=0?meta[editingPanel]:null
+  const picked=$('pf_authMode')?.value||'auto'
+  const auth=picked==='auto'?(token?'token':(username?'admin':(accessCode?'code':''))):picked
+  if(!auth) return toast('请填写访问 Code、管理员密码，或粘贴「我的 Token」',false)
+  if(auth==='token' && !token && !old?.hasToken) return toast('请粘贴 404 面板左下角的「我的 Token」',false)
+  if(auth==='admin' && !username) return toast('请填写 404 面板管理员用户名',false)
+  if(auth==='admin' && !password && !(old?.hasPassword && username===old.username))
+    return toast(editingPanel>=0?'修改 404 用户名后需重新填写密码':'请填写 404 面板管理员密码',false)
+  if(auth==='code' && !accessCode && !old?.hasCode) return toast('请填写旧版面板的访问 Code',false)
+  const item={label:label||`FARM${meta.length+1}`,baseUrl,authMode:picked,accessCode,username,password,token}
   if(editingPanel===-2) meta.push(item)
   else if(meta[editingPanel]) Object.assign(meta[editingPanel],{...item,label:label||meta[editingPanel].label})
   try{ await savePanels(meta,STATE.config.activePanel||0); set('panelForm',e=>e.classList.remove('show')); toast(editingPanel===-2?'面板已添加':'面板已更新') }
@@ -1844,11 +1882,12 @@ set('cfgFile', input=>input.onchange=async ()=>{
     const data=JSON.parse(await file.text())
     const panels=data?.farm?.panels
     if(!Array.isArray(panels)||!panels.length) throw new Error('文件里没有有效面板')
-    if(!confirm(`导入配置将覆盖当前设置（${panels.length} 个面板；访问 Code / 404 密码未带时，仅在地址与用户名一致时沿用现有值）。继续？`)) return
+    if(!confirm(`导入配置将覆盖当前设置（${panels.length} 个面板；访问 Code / 密码 / Token 未带时，仅在地址与用户名一致时沿用现有值）。继续？`)) return
     const j=await post('api/config/import',data)
     if(j.state){ STATE=j.state; render(STATE) }
     const needPass=(j.state?.config?.panels||[]).some(p=>p.mode==='admin'&&!p.hasPassword)
-    toast(needPass?'配置已导入，请在面板页补齐 404 管理员密码':'配置已导入', !needPass)
+    const needToken=(j.state?.config?.panels||[]).some(p=>p.mode==='token'&&!p.hasToken)
+    toast(needPass?'配置已导入，请在面板页补齐 404 管理员密码':(needToken?'配置已导入，请在面板页补齐「我的 Token」':'配置已导入'), !needPass&&!needToken)
   }catch(e){ toast('导入失败：'+e.message,false) }
 })
 set('btnExport', b => b.onclick=()=>{
@@ -1861,7 +1900,7 @@ set('btnExport', b => b.onclick=()=>{
     config:{
       enabled:cfg.enabled, pushOnLogin:cfg.pushOnLogin,
       refreshMinutes:cfg.refreshMinutes, staleHours:cfg.staleHours, activePanel:cfg.activePanel,
-      panels:(cfg.panels||[]).map(p=>({label:p.label,baseUrl:p.baseUrl,hasCode:p.hasCode,mode:p.mode,username:p.username,hasPassword:p.hasPassword,hasAuth:p.hasAuth})),
+      panels:(cfg.panels||[]).map(p=>({label:p.label,baseUrl:p.baseUrl,hasCode:p.hasCode,mode:p.mode,authMode:p.authMode,username:p.username,hasPassword:p.hasPassword,hasToken:p.hasToken,hasAuth:p.hasAuth})),
     },
     accounts:STATE.accounts||[],
     panels:(STATE.panels||[]).map(p=>({

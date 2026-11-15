@@ -11,32 +11,52 @@ import (
 )
 
 // Panel 一个 farm 面板配置。
-// 旧版 qq-farm-bot 使用 AccessCode 登录；qq-farm-bot-404 使用 Username + Password。
+// 旧版 qq-farm-bot 使用 AccessCode 登录；qq-farm-bot-404 使用 Username + Password 或面板「我的 Token」。
 type Panel struct {
 	Label      string `json:"label"`
 	BaseURL    string `json:"baseUrl"`
 	AccessCode string `json:"accessCode"`
 	Username   string `json:"username,omitempty"`
 	Password   string `json:"password,omitempty"`
+	Token      string `json:"token,omitempty"`
+	// AuthMode 显式指定认证方式：token / admin / code；留空则按已填凭据自动判断。
+	AuthMode string `json:"authMode,omitempty"`
 }
 
-// isAdmin 判断面板是否为 qq-farm-bot-404（管理员账号登录）。
-func (p Panel) isAdmin() bool {
-	return p.Username != ""
-}
-
+// mode 返回实际认证方式。Token 优先于用户名密码，避免残留字段误判。
 func (p Panel) mode() string {
-	if p.isAdmin() {
+	switch p.AuthMode {
+	case "token", "admin", "code":
+		return p.AuthMode
+	}
+	if p.Token != "" {
+		return "token"
+	}
+	if p.Username != "" {
 		return "admin"
 	}
 	return "code"
 }
 
+// isToken 判断是否使用 404 面板「我的 Token」直连。
+func (p Panel) isToken() bool {
+	return p.mode() == "token"
+}
+
+// isAdmin 判断面板是否为 qq-farm-bot-404（密码或 Token 认证）。
+func (p Panel) isAdmin() bool {
+	return p.mode() != "code"
+}
+
 func (p Panel) hasAuth() bool {
-	if p.isAdmin() {
+	switch p.mode() {
+	case "token":
+		return p.Token != ""
+	case "admin":
 		return p.Password != ""
+	default:
+		return p.AccessCode != ""
 	}
-	return p.AccessCode != ""
 }
 
 // FarmConfig 推送设置（字段名与旧版 config.json 保持一致，便于原地升级）。
@@ -81,6 +101,20 @@ func normalizePanels(in []Panel) []Panel {
 		p.AccessCode = strings.TrimSpace(p.AccessCode)
 		p.Username = strings.TrimSpace(p.Username)
 		p.Password = strings.TrimSpace(p.Password)
+		p.Token = strings.TrimSpace(p.Token)
+		p.AuthMode = strings.ToLower(strings.TrimSpace(p.AuthMode))
+		if p.AuthMode != "token" && p.AuthMode != "admin" && p.AuthMode != "code" {
+			p.AuthMode = ""
+		}
+		// 显式认证方式下清掉无关凭据，避免切换后旧字段继续生效。
+		switch p.AuthMode {
+		case "token":
+			p.Username, p.Password, p.AccessCode = "", "", ""
+		case "admin":
+			p.Token, p.AccessCode = "", ""
+		case "code":
+			p.Token, p.Username, p.Password = "", "", ""
+		}
 		if p.BaseURL == "" || seen[p.BaseURL] {
 			continue
 		}

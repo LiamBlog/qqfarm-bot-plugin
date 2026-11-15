@@ -155,7 +155,8 @@ func (a *Admin) state(historyLimit int) map[string]any {
 	for _, p := range farm.Panels {
 		panelMeta = append(panelMeta, map[string]any{
 			"label": p.Label, "baseUrl": p.BaseURL, "hasCode": p.AccessCode != "",
-			"mode": p.mode(), "username": p.Username, "hasPassword": p.Password != "",
+			"mode": p.mode(), "authMode": p.AuthMode, "username": p.Username,
+			"hasPassword": p.Password != "", "hasToken": p.Token != "",
 			"hasAuth": p.hasAuth(),
 		})
 	}
@@ -363,7 +364,7 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 		panels := []map[string]any{}
 		for _, p := range farm.Panels {
 			// 不导出访问 Code 与管理员密码
-			panels = append(panels, map[string]any{"label": p.Label, "baseUrl": p.BaseURL, "mode": p.mode(), "username": p.Username})
+			panels = append(panels, map[string]any{"label": p.Label, "baseUrl": p.BaseURL, "mode": p.mode(), "authMode": p.AuthMode, "username": p.Username, "hasToken": p.Token != ""})
 		}
 		payload := map[string]any{
 			"version": version, "exportedAt": time.Now().UnixMilli(),
@@ -421,6 +422,8 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 				AccessCode: strings.TrimSpace(stringField(p, "accessCode")),
 				Username:   strings.TrimSpace(stringField(p, "username")),
 				Password:   strings.TrimSpace(stringField(p, "password")),
+				Token:      strings.TrimSpace(stringField(p, "token")),
+				AuthMode:   panelAuthMode(p),
 			})
 		}
 		migrated := normalizePanels(panels)
@@ -428,17 +431,25 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 			jsonOut(400, map[string]any{"error": "面板数量需在 1–8 之间"})
 			return
 		}
-		// 导入未带凭据时，按地址沿用现有 Code / 密码
+		// 导入未带凭据时，按地址沿用现有 Code / 密码 / Token
 		for i, p := range migrated {
 			for _, old := range next.Panels {
 				if old.BaseURL != p.BaseURL {
 					continue
 				}
-				if p.AccessCode == "" {
-					migrated[i].AccessCode = old.AccessCode
-				}
-				if p.Password == "" && p.Username == old.Username {
-					migrated[i].Password = old.Password
+				switch p.mode() {
+				case "token":
+					if p.Token == "" {
+						migrated[i].Token = old.Token
+					}
+				case "admin":
+					if p.Password == "" && p.Username == old.Username {
+						migrated[i].Password = old.Password
+					}
+				case "code":
+					if p.AccessCode == "" {
+						migrated[i].AccessCode = old.AccessCode
+					}
 				}
 				break
 			}
@@ -502,6 +513,8 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 						AccessCode: strings.TrimSpace(stringField(p, "accessCode")),
 						Username:   strings.TrimSpace(stringField(p, "username")),
 						Password:   strings.TrimSpace(stringField(p, "password")),
+						Token:      strings.TrimSpace(stringField(p, "token")),
+						AuthMode:   normalizeAuthMode(stringField(p, "authMode")),
 					})
 				}
 				if len(panels) > 8 {
@@ -517,17 +530,25 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 				jsonOut(400, map[string]any{"error": "至少保留 1 个有效面板"})
 				return
 			}
-			// 编辑时留空的 Code / 密码保留原值
+			// 编辑时留空的 Code / 密码 / Token 保留原值
 			for i, p := range migrated.Panels {
 				for _, old := range next.Panels {
 					if old.BaseURL != p.BaseURL {
 						continue
 					}
-					if p.AccessCode == "" {
-						migrated.Panels[i].AccessCode = old.AccessCode
-					}
-					if p.Password == "" && p.Username == old.Username {
-						migrated.Panels[i].Password = old.Password
+					switch p.mode() {
+					case "token":
+						if p.Token == "" {
+							migrated.Panels[i].Token = old.Token
+						}
+					case "admin":
+						if p.Password == "" && p.Username == old.Username {
+							migrated.Panels[i].Password = old.Password
+						}
+					case "code":
+						if p.AccessCode == "" {
+							migrated.Panels[i].AccessCode = old.AccessCode
+						}
 					}
 					break
 				}
@@ -615,6 +636,23 @@ func stringField(m map[string]any, key string) string {
 	}
 	if v, ok := m[key].(string); ok {
 		return v
+	}
+	return ""
+}
+
+// panelAuthMode 读取显式认证方式；兼容只带 mode 字段的旧导出配置。
+func panelAuthMode(m map[string]any) string {
+	mode := normalizeAuthMode(stringField(m, "authMode"))
+	if mode == "" {
+		mode = normalizeAuthMode(stringField(m, "mode"))
+	}
+	return mode
+}
+
+func normalizeAuthMode(v string) string {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "token", "admin", "code":
+		return strings.ToLower(strings.TrimSpace(v))
 	}
 	return ""
 }

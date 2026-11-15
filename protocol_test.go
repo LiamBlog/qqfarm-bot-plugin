@@ -202,6 +202,53 @@ func TestPushRestartsStopped404Account(t *testing.T) {
 	}
 }
 
+func TestTokenPanelPushSkipsLogin(t *testing.T) {
+	fake := &fake404Panel{token: "tok-from-panel"}
+	srv := httptest.NewServer(fake)
+	defer srv.Close()
+	b := newTestBridge(t, Panel{Label: "404", BaseURL: srv.URL, Token: "tok-from-panel", AuthMode: "token"})
+
+	res, err := b.PushAccount(Bot{SelfID: 10005, Nickname: "Token号"}, 0)
+	if err != nil {
+		t.Fatalf("Token 推送失败：%v", err)
+	}
+	if fake.attempts != 0 || fake.loginCount != 0 {
+		t.Fatalf("Token 模式不应调用 /api/login：attempts=%d login=%d", fake.attempts, fake.loginCount)
+	}
+	if len(fake.posts) != 1 || fake.posts[0]["code"] != "FARM-CODE" {
+		t.Fatalf("Token 模式应直接写入账号：%v", fake.posts)
+	}
+	if res["started"] != true {
+		t.Fatalf("新增账号结果错误：%v", res)
+	}
+
+	// 第二次推送 Code 未变化应跳过，且仍不触发登录。
+	if _, err := b.PushAccount(Bot{SelfID: 10005, Nickname: "Token号"}, 0); err != nil {
+		t.Fatalf("二次推送失败：%v", err)
+	}
+	if fake.attempts != 0 || len(fake.posts) != 1 {
+		t.Fatalf("Token 模式重复推送异常：attempts=%d posts=%d", fake.attempts, len(fake.posts))
+	}
+}
+
+func TestInvalidTokenBlocksAutoRetry(t *testing.T) {
+	fake := &fake404Panel{token: "good-token"}
+	srv := httptest.NewServer(fake)
+	defer srv.Close()
+	b := newTestBridge(t, Panel{Label: "404", BaseURL: srv.URL, Token: "bad-token", AuthMode: "token"})
+
+	_, err := b.PushAccount(Bot{SelfID: 10006, Nickname: "坏Token"}, 0)
+	if err == nil || !strings.Contains(err.Error(), "Token 已失效") {
+		t.Fatalf("无效 Token 应明确提示失效：%v", err)
+	}
+	if b.authBlockedMessage(0) == "" {
+		t.Fatal("无效 Token 应暂停自动推送")
+	}
+	if fake.attempts != 0 {
+		t.Fatalf("Token 模式不应触发密码登录：%d", fake.attempts)
+	}
+}
+
 func TestLoginFailureCooldown(t *testing.T) {
 	fake := &fake404Panel{token: "tok-404"}
 	srv := httptest.NewServer(fake)

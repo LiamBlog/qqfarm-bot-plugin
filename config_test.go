@@ -26,6 +26,39 @@ func TestNormalizePanels(t *testing.T) {
 	}
 }
 
+func TestPanelTokenMode(t *testing.T) {
+	// 未显式指定认证方式：Token 优先，且仍按 404 面板处理。
+	out := normalizePanels([]Panel{{
+		Label: "404", BaseURL: "http://a", Token: " tok ", Username: "admin", Password: "pw",
+	}})
+	p := out[0]
+	if p.Token != "tok" || p.mode() != "token" || !p.isToken() || !p.isAdmin() || !p.hasAuth() {
+		t.Fatalf("Token 面板识别错误：%+v mode=%s", p, p.mode())
+	}
+
+	// 显式 Token 模式：清理用户名密码与访问 Code。
+	p = normalizePanels([]Panel{{
+		BaseURL: "http://b", AuthMode: "TOKEN", Token: "tok", Username: "admin", Password: "pw", AccessCode: "c",
+	}})[0]
+	if p.AuthMode != "token" || p.Username != "" || p.Password != "" || p.AccessCode != "" || !p.hasAuth() {
+		t.Fatalf("显式 Token 模式应清空无关凭据：%+v", p)
+	}
+
+	// 显式密码模式：清掉 Token，避免残留 Token 抢占。
+	p = normalizePanels([]Panel{{
+		BaseURL: "http://c", AuthMode: "admin", Token: "tok", Username: "admin", Password: "pw",
+	}})[0]
+	if p.Token != "" || p.mode() != "admin" || !p.hasAuth() {
+		t.Fatalf("显式密码模式应清空 Token：%+v", p)
+	}
+
+	// Token 模式但未填 Token：视为未配置凭据，便于前端提示。
+	p = Panel{BaseURL: "http://d", AuthMode: "token"}
+	if p.hasAuth() || !p.isAdmin() {
+		t.Fatalf("空 Token 不应视为已配置：%+v", p)
+	}
+}
+
 func TestMigrateLegacyConfig(t *testing.T) {
 	t.Setenv("FARM_ACCESS_CODE", "env-code")
 	enabled, push := true, false

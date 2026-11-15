@@ -328,6 +328,13 @@ func (b *Bridge) login(index int) (string, error) {
 }
 
 func (b *Bridge) loginPanel(panel Panel) (string, error) {
+	// 404 面板「我的 Token」本身就是 x-admin-token，无需再走 /api/login。
+	if panel.isToken() {
+		if panel.Token == "" {
+			return "", authError{fmt.Sprintf("面板「%s」未配置 Token，请在面板左下角复制「我的 Token」后粘贴", panel.Label)}
+		}
+		return panel.Token, nil
+	}
 	if panel.isAdmin() {
 		return b.loginAdmin(panel)
 	}
@@ -506,6 +513,17 @@ func (b *Bridge) farmFetchInternal(index int, method, path string, payload any, 
 			b.mu.Unlock()
 			b.saveTokens()
 			return b.farmFetchInternal(index, method, path, payload, true, netRetried)
+		}
+		if panel.isToken() {
+			msg := fmt.Sprintf("面板「%s」Token 已失效，请在面板左下角重新复制「我的 Token」并更新", panel.Label)
+			b.loginMu.Lock()
+			b.loginFail[index] = loginFailure{until: time.Now().Add(loginRetryCooldown), msg: msg}
+			b.authBlocked[index] = msg
+			b.loginMu.Unlock()
+			return nil, errors.New(msg)
+		}
+		if panel.isAdmin() {
+			return nil, fmt.Errorf("面板「%s」管理员凭据已失效，请检查用户名和密码后重试", panel.Label)
 		}
 		return nil, fmt.Errorf("面板「%s」访问 Code 不正确，请在「面板」页更新后重试", panel.Label)
 	}
@@ -898,7 +916,7 @@ func (b *Bridge) PanelStatus() []map[string]any {
 				"label": panel.Label, "baseUrl": panel.BaseURL,
 				"hasCode": panel.AccessCode != "", "mode": panel.mode(),
 				"username": panel.Username, "hasPassword": panel.Password != "",
-				"hasAuth": panel.hasAuth(), "ok": false, "error": "", "ms": 0,
+				"hasToken": panel.Token != "", "hasAuth": panel.hasAuth(), "ok": false, "error": "", "ms": 0,
 				"warning": b.panelWarning(panel.BaseURL), "accounts": []any{},
 			}
 			started := time.Now()
