@@ -273,6 +273,9 @@
   .search { background:var(--bg2);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:6px 11px;font-size:12.5px;width:190px;outline:none;transition:border-color .15s; }
   .search:focus { border-color:var(--violet); }
   .acc-filter { display:inline-flex;gap:5px;margin-left:auto; }
+  /* 卡片视图下的全选（表格视图用表头的 #checkAll） */
+  .account-controls .checkall { display:none;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap; }
+  .account-controls .checkall input { width:14px;height:14px;accent-color:var(--accent);cursor:pointer; }
   .sort-select { background:var(--bg2);border:1px solid var(--line);color:var(--muted);border-radius:9px;padding:5px 8px;font-size:12px;outline:none;cursor:pointer; }
   .sort-select:hover { color:var(--text);border-color:var(--line2); }
   .chip { background:var(--card2);border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:4px 12px;font-size:12px;cursor:pointer;transition:.15s; }
@@ -328,7 +331,7 @@
   footer code{background:var(--card2);padding:1px 7px;border-radius:6px;font-size:11px;}
 
   #toast { position:fixed; right:22px; bottom:22px; display:none; align-items:center; gap:9px; overflow:hidden;
-    background:var(--card2); border:1px solid var(--line2); border-radius:12px; padding:11px 20px 13px; font-size:13px; z-index:50; box-shadow:var(--shadow);
+    background:var(--card2); border:1px solid var(--line2); border-radius:12px; padding:11px 20px 13px; font-size:13px; z-index:90; box-shadow:var(--shadow);
     opacity:0; transform:translateY(10px); transition:opacity .18s, transform .18s; max-width:min(420px, 88vw); }
   #toast.show{display:flex;opacity:1;transform:translateY(0)}
   #toast svg{width:16px;height:16px;flex:none}
@@ -433,10 +436,11 @@
   .stat .lbl { font-size:11.5px; }
   .stats .donut { --size:36px; }
 
-  /* 中屏（≤820px）直接切换卡片视图，避免 7 列表格横向滚动 */
-  @media (max-width:820px){
+  /* 中屏及以下（≤1023px）切换卡片视图，避免宽表格横向滚动 */
+  @media (max-width:1023px){
     .table-wrap { display:none; }
-    .account-cards { display:flex; }
+    .account-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px; }
+    .account-controls .checkall { display:inline-flex; }
   }
   @media (max-width:640px){
     .stats { flex-wrap:wrap;padding:2px; }
@@ -472,7 +476,7 @@
     .sub{display:none}
     .title-block h1{font-size:16.5px}
     .table-wrap{display:none}
-    .account-cards{display:flex}
+    .account-cards{display:flex;gap:10px}
     th,td{padding:8px 7px}
     .tab{min-width:84px;padding:8px 6px;font-size:12.5px;gap:5px}
     .mini-btn{padding:7px 11px;min-height:30px}
@@ -550,8 +554,7 @@
   .push-stat { background:var(--ok-soft); }
   .head-status, .head-controls { display:flex;align-items:center;gap:9px;flex-wrap:wrap; }
   #btnPushAll .btn-t { display:inline; }
-  .stat-note { color:var(--faint);font-size:10.5px;line-height:1.4;margin-top:3px; }
-  #stLastPush { font-size:16px;overflow-wrap:anywhere; }
+  #stLastPush { overflow-wrap:anywhere; }
   .account-toolbar { margin-bottom:14px; }
   .account-heading { margin-bottom:12px; }
   .account-heading h2 { width:auto;flex-wrap:wrap; }
@@ -685,9 +688,9 @@
   }
 
   /* 面板配置改为居中模态 */
-  .modal-mask { position:fixed; inset:0; background:rgba(0,0,0,.44); -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px); opacity:0; visibility:hidden; transition:opacity .18s,visibility .18s; z-index:60; }
+  .modal-mask { position:fixed; inset:0; background:rgba(0,0,0,.44); -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px); opacity:0; visibility:hidden; transition:opacity .18s,visibility .18s; z-index:70; }
   .modal-mask.show { opacity:1; visibility:visible; }
-  .panel-form { position:fixed; left:50%; top:50%; transform:translate(-50%,-46%) scale(.98); width:min(560px,calc(100vw - 32px)); max-height:calc(100vh - 40px); overflow:auto; margin:0; border:1px solid var(--line); border-radius:16px; background:var(--card-grad,var(--card)); box-shadow:var(--shadow); padding:18px; display:flex; flex-wrap:wrap; gap:12px; z-index:61; opacity:0; visibility:hidden; transition:opacity .18s,transform .18s,visibility .18s; }
+  .panel-form { position:fixed; left:50%; top:50%; transform:translate(-50%,-46%) scale(.98); width:min(560px,calc(100vw - 32px)); max-height:calc(100vh - 40px); overflow:auto; margin:0; border:1px solid var(--line); border-radius:16px; background:var(--card-grad,var(--card)); box-shadow:var(--shadow); padding:18px; display:flex; flex-wrap:wrap; gap:12px; z-index:71; opacity:0; visibility:hidden; transition:opacity .18s,transform .18s,visibility .18s; }
   .panel-form.show { opacity:1; visibility:visible; transform:translate(-50%,-50%) scale(1); }
   .panel-form .pf-head { width:100%; display:flex; align-items:center; justify-content:space-between; }
   .panel-form .pf-head h3 { font-size:15px; font-weight:700; }
@@ -799,7 +802,6 @@
   .stat .ico { width: 38px; height: 38px; border-radius: 12px; }
   .stat .num { font-size: 22px; font-weight: 700; letter-spacing: -.5px; }
   .stat .lbl { font-size: 11.5px; }
-  .stat .stat-note { color: var(--faint); }
 
   /* 卡片与分组：统一大圆角与内边距 */
   .card { border-radius: 18px; padding: 20px 22px; }
@@ -973,7 +975,6 @@
   .stat[data-stat] .body { flex: 1; min-width: 0; position: relative; z-index: 1; }
   .stat[data-stat] .num { font-size: 27px; color: #fff; }
   .stat[data-stat] .lbl { color: rgba(255,255,255,.84); }
-  .stat[data-stat] .stat-note { display: none; }
   .stat[data-stat] .ico {
     position: absolute; right: 16px; top: 16px; z-index: 1;
     width: 34px; height: 34px; border-radius: 10px; color: #fff;
@@ -993,6 +994,8 @@
     .stat[data-stat] { min-height: 96px; padding: 14px 15px; }
     .stat[data-stat] .num { font-size: 22px; }
     .stat[data-stat] .ico { width: 29px; height: 29px; right: 12px; top: 12px; }
+    /* 时间值较宽，窄屏独占一行避免与图标重叠 */
+    .stat[data-stat='activity'] { grid-column: 1 / -1; }
   }
 
   /* 桌面端（≥1024）：侧栏 + 面包屑顶栏 + 页面标签条 */
@@ -1176,9 +1179,9 @@
       <div class="g-sub" id="greetSub">正在加载今日概览…</div>
     </div>
     <div class="g-nums">
-      <div><b id="greetAccounts">–</b><span>账号</span></div>
-      <div><b id="greetPending">–</b><span>待处理</span></div>
+      <div><b id="greetPush">–</b><span>今日推送</span></div>
       <div><b id="greetActivity">–</b><span>今日动态</span></div>
+      <div><b id="greetPanels">–</b><span>接入面板</span></div>
     </div>
   </section>
   <div class="notice" id="noPanelNotice" style="display:none">
@@ -1205,7 +1208,7 @@
     </div>
     <div class="stat" data-stat="activity" role="button" tabindex="0" title="查看推送动态"><div class="ico amber">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
-      <div class="body"><div class="num" id="stLastPush"></div><div class="lbl">最近推送</div><div class="stat-note">最近成功推送（跨面板）</div></div>
+      <div class="body"><div class="num" id="stLastPush"></div><div class="lbl">最近成功推送（跨面板）</div></div>
     </div>
   </section>
 
@@ -1221,10 +1224,11 @@
         <div class="account-controls">
         <label class="sr-only" for="search">搜索账号</label>
         <input class="search" id="search" type="text" placeholder="搜索 QQ / 昵称 / 备注…">
+        <label class="checkall" title="全选可推送账号"><input type="checkbox" id="checkAllCards">全选</label>
         <div class="acc-filter">
-          <button class="chip active" data-filter="all">全部</button>
-          <button class="chip" data-filter="online">仅在线</button>
-          <button class="chip" data-filter="pending">待处理</button>
+          <button class="chip active" data-filter="all" aria-pressed="true">全部</button>
+          <button class="chip" data-filter="online" aria-pressed="false">仅在线</button>
+          <button class="chip" data-filter="pending" aria-pressed="false">待处理</button>
         </div>
         <label class="sr-only" for="accSort">账号排序</label>
         <select class="sort-select" id="accSort" title="账号排序">
@@ -1292,10 +1296,10 @@
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-9 4 18 3-9h4"/></svg>动态</h2>
         <div class="head-right">
           <div class="hist-filters" id="histFilters">
-            <button class="hf-btn active" data-f="all" type="button">全部</button>
-            <button class="hf-btn" data-f="push" type="button">推送</button>
-            <button class="hf-btn" data-f="account" type="button">账号</button>
-            <button class="hf-btn" data-f="panel" type="button">面板</button>
+            <button class="hf-btn active" data-f="all" type="button" aria-pressed="true">全部</button>
+            <button class="hf-btn" data-f="push" type="button" aria-pressed="false">推送</button>
+            <button class="hf-btn" data-f="account" type="button" aria-pressed="false">账号</button>
+            <button class="hf-btn" data-f="panel" type="button" aria-pressed="false">面板</button>
           </div>
           <button class="mini-btn" id="btnHistClear" type="button" title="清空动态流">清空</button>
           <span class="faint">最近 120 条</span>
@@ -1498,7 +1502,11 @@ set('alertBadge', el => el.onclick = () => showTab('panels'))
 // 账号筛选：全部 / 仅在线
 document.querySelectorAll('.chip[data-filter]').forEach(c => c.onclick = () => {
   accFilter = c.dataset.filter
-  document.querySelectorAll('.chip[data-filter]').forEach(x => x.classList.toggle('active', x === c))
+  document.querySelectorAll('.chip[data-filter]').forEach(x => {
+    const on = x === c
+    x.classList.toggle('active', on)
+    x.setAttribute('aria-pressed', on ? 'true' : 'false')
+  })
   if (STATE) render(STATE)
 })
 // 动态流加载更多 / 账号详情抽屉
@@ -1523,10 +1531,14 @@ set('btnHistMore', b => b.onclick = () => { historyLimit = Math.min(200, history
 function updateBulk(){
   const bar=$('bulkBar'); if(bar) bar.classList.toggle('show', selected.size>0)
   set('bulkCount', e=>e.textContent='已选 '+selected.size)
+  // 以 selected 为唯一数据源，表格与卡片两套复选框保持一致
   const boxes=[...document.querySelectorAll('.rowCheck:not(:disabled)')]
-  set('checkAll', cb=>{
-    cb.checked = boxes.length>0 && boxes.every(c=>c.checked)
-    cb.indeterminate = !cb.checked && selected.size>0
+  boxes.forEach(b=>{ b.checked=selected.has(b.dataset.key) })
+  const keys=new Set(boxes.map(b=>b.dataset.key))
+  const all=keys.size>0 && [...keys].every(k=>selected.has(k))
+  document.querySelectorAll('#checkAll,#checkAllCards').forEach(cb=>{
+    cb.checked=all
+    cb.indeterminate=!all && selected.size>0
   })
 }
 let accSortDir = localStorage.getItem('mengka-acc-sort-dir') || 'desc'
@@ -1564,7 +1576,11 @@ document.querySelectorAll('.stat[data-stat]').forEach(el=>{
     if(f==='activity'){ showTab('activity'); return }
     showTab('accounts')
     accFilter=f
-    document.querySelectorAll('.chip[data-filter]').forEach(x=>x.classList.toggle('active',x.dataset.filter===f))
+    document.querySelectorAll('.chip[data-filter]').forEach(x=>{
+      const on=x.dataset.filter===f
+      x.classList.toggle('active',on)
+      x.setAttribute('aria-pressed',on?'true':'false')
+    })
     if(STATE) render(STATE)
   }
   el.onclick=act
@@ -1585,6 +1601,13 @@ set('btnLogs', b=>b.onclick=async ()=>{
   }catch(e){ toast('导出日志失败：'+e.message,false) }
 })
 set('checkAll', cb=>cb.onchange=()=>{
+  document.querySelectorAll('.rowCheck:not(:disabled)').forEach(c=>{
+    c.checked = cb.checked
+    cb.checked ? selected.add(c.dataset.key) : selected.delete(c.dataset.key)
+  })
+  updateBulk()
+})
+set('checkAllCards', cb=>cb.onchange=()=>{
   document.querySelectorAll('.rowCheck:not(:disabled)').forEach(c=>{
     c.checked = cb.checked
     cb.checked ? selected.add(c.dataset.key) : selected.delete(c.dataset.key)
@@ -1963,18 +1986,24 @@ function render(s){
     numUp('stPending',allGroups.filter(g=>syncStatus(g,s).pending).length)
     const pushed=allGroups.filter(g=>g.codeAge!=null).sort((a,b)=>a.codeAge-b.codeAge)
     set('stLastPush', e => {e.textContent=pushed.length?new Date(s.now-pushed[0].codeAge).toLocaleTimeString('zh-CN',{hour12:false}):'暂无';e.title=pushed.length?pushTime(pushed[0],s):'暂无成功推送记录'})
-    /* 概览问候卡 */
+    /* 概览问候卡：只呈现「今日 / 面板」视角，账号与在线等状态由下方统计卡承担 */
     const nowMs=Number(s.now)||Date.now()
     const todayStart=new Date(nowMs); todayStart.setHours(0,0,0,0)
-    const todayCount=(s.history||[]).filter(h=>Number(h.time)>=todayStart.getTime()).length
-    const pendCount=allGroups.filter(g=>syncStatus(g,s).pending).length
+    const todayHist=(s.history||[]).filter(h=>Number(h.time)>=todayStart.getTime())
+    const todayCount=todayHist.length
+    const pushToday=todayHist.filter(h=>h.type==='push').length
+    const okPanels=panels.filter(p=>p.ok).length
     const hour=new Date(nowMs).getHours()
     const hiWord=hour<6?'夜深了':hour<12?'上午好':hour<18?'下午好':'晚上好'
     set('greetHi', e=>e.textContent=`${hiWord}，管理员`)
-    set('greetSub', e=>e.textContent=`${allGroups.length} 个账号 · ${online} 个在线 · ${pendCount} 个待处理 · 今日 ${todayCount} 条动态`)
-    set('greetAccounts', e=>e.textContent=allGroups.length)
-    set('greetPending', e=>e.textContent=pendCount)
+    set('greetSub', e=>e.textContent = !hasPanelCfg ? '还没有接入面板，账号 Code 暂时无处推送'
+      : !cfg.enabled ? '推送未启用，面板已就绪'
+      : alerts.length ? `${alerts.length} 个面板告警，需要尽快处理`
+      : okPanels===panels.length ? '所有面板连接正常'
+      : `${panels.length-okPanels} 个面板不可达`)
+    set('greetPush', e=>e.textContent=pushToday)
     set('greetActivity', e=>e.textContent=todayCount)
+    set('greetPanels', e=>e.textContent=panels.length?`${okPanels}/${panels.length}`:'–')
     set('accountCount', e=>e.textContent=allGroups.length+' 个账号 · '+s.accounts.length+' 个实例')
     renderDonut(online,allGroups.length)
 
@@ -2571,7 +2600,11 @@ set('btnExport', b => b.onclick=()=>{
 /* ---------- 动态流筛选与清空 ---------- */
 document.querySelectorAll('#histFilters .hf-btn').forEach(btn => btn.onclick=()=>{
   histFilter=btn.dataset.f||'all'
-  document.querySelectorAll('#histFilters .hf-btn').forEach(x=>x.classList.toggle('active',x===btn))
+  document.querySelectorAll('#histFilters .hf-btn').forEach(x=>{
+    const on=x===btn
+    x.classList.toggle('active',on)
+    x.setAttribute('aria-pressed',on?'true':'false')
+  })
   if(STATE) render(STATE)
 })
 set('btnHistClear', b => b.onclick=async ()=>{

@@ -21,7 +21,7 @@ const (
 	ipcMaxFrame = 16 << 20
 )
 
-var version = "3.7.20"
+var version = "3.7.21"
 
 // connection 框架写入的受控连接文件。
 type connection struct {
