@@ -136,6 +136,13 @@ func (a *Admin) state(historyLimit int) map[string]any {
 	}
 
 	panels := a.panelsCached()
+	for _, panel := range panels {
+		if base, ok := panel["baseUrl"].(string); ok {
+			fails, alerting := a.bridge.alertInfo(base)
+			panel["fails"] = fails
+			panel["alert"] = alerting
+		}
+	}
 
 	dayStart := time.Now()
 	dayStart = time.Date(dayStart.Year(), dayStart.Month(), dayStart.Day(), 0, 0, 0, 0, dayStart.Location())
@@ -181,11 +188,14 @@ func (a *Admin) state(historyLimit int) map[string]any {
 			"staleHours":     farm.StaleHours,
 			"autoRepair":     farm.AutoRepair,
 			"repairMinutes":  farm.RepairMinutes,
+			"webhook":        farm.Webhook,
+			"alertFails":     farm.AlertFails,
 			"activePanel":    farm.ActivePanel,
 			"panels":         panelMeta,
 		},
 		"accounts": accounts,
 		"panels":   panels,
+		"retries":  a.bridge.RetryQueue(),
 		"stats":    map[string]any{"todayOk": okCount, "todayFail": failCount},
 		"history":  history,
 		"now":      now,
@@ -372,6 +382,7 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 				"enabled": farm.Enabled, "pushOnLogin": farm.PushOnLogin,
 				"refreshMinutes": farm.RefreshMinutes, "staleHours": farm.StaleHours,
 				"autoRepair": farm.AutoRepair, "repairMinutes": farm.RepairMinutes,
+				"webhook": farm.Webhook, "alertFails": farm.AlertFails,
 				"activePanel": farm.ActivePanel, "panels": panels,
 			},
 		}
@@ -407,6 +418,12 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 		}
 		if _, ok := farm["repairMinutes"]; ok {
 			next.RepairMinutes = clampRepair(int(toFloat(farm["repairMinutes"])))
+		}
+		if v, ok := farm["webhook"].(string); ok {
+			next.Webhook = strings.TrimSpace(v)
+		}
+		if _, ok := farm["alertFails"]; ok {
+			next.AlertFails = clampAlert(int(toFloat(farm["alertFails"])))
 		}
 		list, _ := farm["panels"].([]any)
 		panels := []Panel{}
@@ -489,6 +506,12 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 		if _, ok := farm["repairMinutes"]; ok {
 			next.RepairMinutes = clampRepair(int(toFloat(farm["repairMinutes"])))
 		}
+		if v, ok := farm["webhook"].(string); ok {
+			next.Webhook = strings.TrimSpace(v)
+		}
+		if _, ok := farm["alertFails"]; ok {
+			next.AlertFails = clampAlert(int(toFloat(farm["alertFails"])))
+		}
 		_, hasPanels := farm["panels"]
 		_, hasBaseURL := farm["baseUrl"]
 		if hasPanels || hasBaseURL {
@@ -497,6 +520,8 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 				PushOnLogin:    boolPtr(next.PushOnLogin),
 				RefreshMinutes: intPtr(next.RefreshMinutes),
 				StaleHours:     intPtr(next.StaleHours),
+				Webhook:        stringPtr(next.Webhook),
+				AlertFails:     intPtr(next.AlertFails),
 			}
 			if hasPanels {
 				list, _ := farm["panels"].([]any)
@@ -628,8 +653,9 @@ func clampIndex(i, length int) int {
 	return i
 }
 
-func boolPtr(v bool) *bool { return &v }
-func intPtr(v int) *int    { return &v }
+func boolPtr(v bool) *bool       { return &v }
+func intPtr(v int) *int          { return &v }
+func stringPtr(v string) *string { return &v }
 func stringField(m map[string]any, key string) string {
 	if m == nil {
 		return ""

@@ -21,6 +21,7 @@ const FARM_SESSION_TOKEN = 'farm-session-token-abc'
 const results = []
 let farmAccounts = [{ id: 'acc-1', name: 'QQ10001', qq: '10001', uin: '10001', code: 'OLD_CODE', platform: 'qq', running: true }]
 let failOnce = 0
+let failAll = false
 let postCount = 0
 let forcedCode = ''
 let hello = null
@@ -49,8 +50,8 @@ const farm = http.createServer((req, res) => {
       return send(200, { ok: true, data: { username: 'admin' } })
     }
     if (req.headers['x-admin-token'] !== FARM_SESSION_TOKEN) return send(401, { ok: false, error: 'Unauthorized' })
-    if (req.url === '/api/accounts' && req.method === 'POST' && failOnce > 0) {
-      failOnce -= 1
+    if (req.url === '/api/accounts' && req.method === 'POST' && (failAll || failOnce > 0)) {
+      if (!failAll) failOnce -= 1
       return send(500, { ok: false, error: 'upstream boom' })
     }
     if (req.url === '/api/accounts' && req.method === 'GET') return send(200, { ok: true, data: { accounts: farmAccounts } })
@@ -211,6 +212,40 @@ summarize('管理端页面可访问', page.includes('<html') && page.includes('d
 
 const cleared = await fetch(`${BASE}/api/history_clear`, { method: 'POST' }).then(r => r.json()).catch(() => null)
 summarize('清空动态流', cleared?.ok === true && cleared.state.history.length === 0, '')
+
+/* ---------- 失败告警与重试队列 ---------- */
+const hookHits = []
+const hookSrv = http.createServer((req, res) => {
+  let raw = ''
+  req.on('data', c => { raw += c })
+  req.on('end', () => {
+    try { hookHits.push(JSON.parse(raw)) } catch {}
+    res.writeHead(204)
+    res.end()
+  })
+})
+await new Promise(r => hookSrv.listen(0, '127.0.0.1', r))
+const hookURL = `http://127.0.0.1:${hookSrv.address().port}/hook`
+
+const alertCfg = await fetch(`${BASE}/api/config`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ farm: { webhook: hookURL, alertFails: 1 } }) }).then(r => r.json()).catch(() => null)
+summarize('告警配置保存', alertCfg?.state?.config?.webhook === hookURL && alertCfg?.state?.config?.alertFails === 1, `alertFails=${alertCfg?.state?.config?.alertFails}`)
+
+forcedCode = `ALERT_FAIL_${Date.now()}`
+failAll = true
+const badPush = await fetch(`${BASE}/api/push_all`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(r => r.json()).catch(() => null)
+await delay(1200)
+const alertState = await fetch(`${BASE}/api/state`).then(r => r.json()).catch(() => null)
+summarize('连续失败触发面板告警', badPush?.results?.some(r => !r.ok) && alertState?.panels?.[0]?.alert === true && alertState.panels[0].fails >= 1, `fails=${alertState?.panels?.[0]?.fails}`)
+summarize('失败任务进入重试队列', Array.isArray(alertState?.retries) && alertState.retries.length >= 1, `retries=${alertState?.retries?.length}`)
+summarize('Webhook 收到失败告警', hookHits.some(h => h.level === 'error' && String(h.title).includes('失败')), `hits=${hookHits.length}`)
+
+failAll = false
+const okPush = await fetch(`${BASE}/api/push`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"self_id":10001,"protocol_id":0}' }).then(r => r.json()).catch(() => null)
+await delay(1200)
+const recovered = await fetch(`${BASE}/api/state`).then(r => r.json()).catch(() => null)
+summarize('推送恢复后告警解除', okPush?.ok === true && recovered?.panels?.[0]?.alert === false, '')
+summarize('Webhook 收到恢复通知', hookHits.some(h => h.level === 'ok'), `hits=${hookHits.length}`)
+hookSrv.close()
 
 child.kill('SIGTERM')
 farm.close()

@@ -91,6 +91,11 @@ type Bridge struct {
 	pushingMu sync.Mutex
 	pushing   map[string]bool
 	retrying  map[string]bool
+	retryInfo map[string]map[string]any
+
+	alertMu    sync.Mutex
+	panelFails map[string]int
+	alertOn    map[string]bool
 }
 
 func newBridge(cfg *Config, ipc *IPC, dataDir string) *Bridge {
@@ -109,6 +114,9 @@ func newBridge(cfg *Config, ipc *IPC, dataDir string) *Bridge {
 		panelWarn:    map[string]string{},
 		pushing:      map[string]bool{},
 		retrying:     map[string]bool{},
+		retryInfo:    map[string]map[string]any{},
+		panelFails:   map[string]int{},
+		alertOn:      map[string]bool{},
 	}
 	b.loadState()
 	return b
@@ -572,7 +580,17 @@ func pickFarmCode(m map[string]any) (string, error) {
 
 /* ---------- 推送 ---------- */
 
+// PushAccount 推送并记录连续失败次数，用于告警与面板状态展示。
 func (b *Bridge) PushAccount(bot Bot, index int) (map[string]any, error) {
+	res, err := b.pushAccount(bot, index)
+	if skipped, _ := res["skipped"].(bool); skipped {
+		return res, err
+	}
+	b.trackPush(index, err)
+	return res, err
+}
+
+func (b *Bridge) pushAccount(bot Bot, index int) (map[string]any, error) {
 	panels := b.Panels()
 	if index < 0 || index >= len(panels) {
 		return nil, errors.New("目标面板不存在")
@@ -856,6 +874,7 @@ func (b *Bridge) retryPushLater(bot Bot, index int) {
 	defer func() {
 		b.pushingMu.Lock()
 		delete(b.retrying, key)
+		delete(b.retryInfo, key)
 		b.pushingMu.Unlock()
 	}()
 
@@ -863,6 +882,16 @@ func (b *Bridge) retryPushLater(bot Bot, index int) {
 		if b.authBlockedMessage(index) != "" {
 			return
 		}
+		label := ""
+		if panels := b.Panels(); index >= 0 && index < len(panels) {
+			label = panels[index].Label
+		}
+		b.pushingMu.Lock()
+		b.retryInfo[key] = map[string]any{
+			"self_id": bot.SelfID, "panel": label, "panel_index": index,
+			"attempt": attempt + 1, "next_at": time.Now().Add(wait).UnixMilli(),
+		}
+		b.pushingMu.Unlock()
 		time.Sleep(wait)
 		if _, err := b.PushAccount(bot, index); err == nil {
 			if attempt > 0 {
@@ -874,6 +903,122 @@ func (b *Bridge) retryPushLater(bot Bot, index int) {
 	}
 	fail := false
 	b.LogActivity("push", fmt.Sprintf("%d 自动重试 3 次仍失败，请检查面板", bot.SelfID), "", &fail)
+	b.raiseAlert(index, "自动重试 3 次仍失败，请检查面板")
+}
+
+// trackPush 更新面板连续失败计数；达到阈值时触发一次告警，恢复后自动清除。
+func (b *Bridge) trackPush(index int, err error) {
+	panels := b.Panels()
+	if index < 0 || index >= len(panels) {
+		return
+	}
+	panel := panels[index]
+	limit := b.cfg.Get().AlertFails
+	if limit <= 0 {
+		limit = 3
+	}
+	if err == nil {
+		b.alertMu.Lock()
+		was := b.alertOn[panel.BaseURL]
+		delete(b.panelFails, panel.BaseURL)
+		delete(b.alertOn, panel.BaseURL)
+		b.alertMu.Unlock()
+		if was {
+			b.LogActivity("panel", fmt.Sprintf("面板「%s」推送已恢复正常", panel.Label), "", nil)
+			b.notify("面板推送恢复", fmt.Sprintf("面板「%s」已恢复接收推送", panel.Label), "ok")
+		}
+		return
+	}
+	b.alertMu.Lock()
+	b.panelFails[panel.BaseURL]++
+	fails := b.panelFails[panel.BaseURL]
+	fire := fails >= limit && !b.alertOn[panel.BaseURL]
+	if fire {
+		b.alertOn[panel.BaseURL] = true
+	}
+	b.alertMu.Unlock()
+	if fire {
+		reason := err.Error()
+		if len(reason) > 160 {
+			reason = reason[:160]
+		}
+		fail := false
+		b.LogActivity("panel", fmt.Sprintf("面板「%s」连续 %d 次推送失败", panel.Label, fails), reason, &fail)
+		b.notify("推送连续失败", fmt.Sprintf("面板「%s」连续 %d 次推送失败：%s", panel.Label, fails, reason), "error")
+	}
+}
+
+// raiseAlert 重试耗尽等场景直接告警（同一面板只提醒一次，成功推送后复位）。
+func (b *Bridge) raiseAlert(index int, reason string) {
+	panels := b.Panels()
+	if index < 0 || index >= len(panels) {
+		return
+	}
+	panel := panels[index]
+	b.alertMu.Lock()
+	if b.alertOn[panel.BaseURL] {
+		b.alertMu.Unlock()
+		return
+	}
+	b.alertOn[panel.BaseURL] = true
+	b.alertMu.Unlock()
+	b.notify("推送持续失败", fmt.Sprintf("面板「%s」%s", panel.Label, reason), "error")
+}
+
+// alertInfo 返回某面板的连续失败次数与告警状态。
+func (b *Bridge) alertInfo(baseURL string) (int, bool) {
+	b.alertMu.Lock()
+	defer b.alertMu.Unlock()
+	return b.panelFails[baseURL], b.alertOn[baseURL]
+}
+
+// RetryQueue 返回当前排队中的失败重试任务。
+func (b *Bridge) RetryQueue() []map[string]any {
+	b.pushingMu.Lock()
+	defer b.pushingMu.Unlock()
+	out := make([]map[string]any, 0, len(b.retryInfo))
+	for _, item := range b.retryInfo {
+		cp := make(map[string]any, len(item))
+		for k, v := range item {
+			cp[k] = v
+		}
+		out = append(out, cp)
+	}
+	return out
+}
+
+// notify 异步 POST 告警到用户配置的 Webhook；失败只记日志，不影响主流程。
+func (b *Bridge) notify(title, detail, level string) {
+	url := strings.TrimSpace(b.cfg.Get().Webhook)
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		return
+	}
+	go func() {
+		payload := map[string]any{
+			"title": title, "detail": detail, "level": level,
+			"text":   title + "\n" + detail,
+			"plugin": pluginID, "version": version, "instance": instanceID,
+			"time": time.Now().UnixMilli(),
+		}
+		data, _ := json.Marshal(payload)
+		req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(data))
+		if err != nil {
+			logf("告警通知构造失败：%v", err)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		client := &http.Client{Timeout: 6 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			logf("告警通知发送失败：%v", err)
+			return
+		}
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 2048))
+		resp.Body.Close()
+		if resp.StatusCode >= 300 {
+			logf("告警通知失败：HTTP %d", resp.StatusCode)
+		}
+	}()
 }
 
 func (b *Bridge) TestPanel(index int) (map[string]any, error) {
@@ -975,6 +1120,9 @@ func (b *Bridge) PanelStatus() []map[string]any {
 			}
 			b.panelState[panel.BaseURL] = nowOK
 			b.stateMu.Unlock()
+			fails, alerting := b.alertInfo(panel.BaseURL)
+			item["fails"] = fails
+			item["alert"] = alerting
 			out[i] = item
 		}(i, panel)
 	}

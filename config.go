@@ -69,6 +69,10 @@ type FarmConfig struct {
 	RepairMinutes  int     `json:"repairMinutes"`
 	Panels         []Panel `json:"panels"`
 	ActivePanel    int     `json:"activePanel"`
+	// Webhook 失败/恢复通知地址（可选，兼容飞书等自定义机器人）。
+	Webhook string `json:"webhook,omitempty"`
+	// AlertFails 同一面板连续推送失败多少次后告警。
+	AlertFails int `json:"alertFails"`
 }
 
 type Config struct {
@@ -88,6 +92,8 @@ type rawFarm struct {
 	RepairMinutes  *int    `json:"repairMinutes"`
 	Panels         []Panel `json:"panels"`
 	ActivePanel    *int    `json:"activePanel"`
+	Webhook        *string `json:"webhook"`
+	AlertFails     *int    `json:"alertFails"`
 	BaseURL        string  `json:"baseUrl"`
 	AccessCode     string  `json:"accessCode"`
 }
@@ -132,6 +138,7 @@ func migrateFarm(raw rawFarm) FarmConfig {
 		Enabled:       true,
 		PushOnLogin:   true,
 		RepairMinutes: 30,
+		AlertFails:    3,
 		Panels:        normalizePanels(raw.Panels),
 	}
 	if raw.Enabled != nil {
@@ -152,6 +159,12 @@ func migrateFarm(raw rawFarm) FarmConfig {
 	if raw.RepairMinutes != nil {
 		farm.RepairMinutes = clampRepair(*raw.RepairMinutes)
 	}
+	if raw.Webhook != nil {
+		farm.Webhook = strings.TrimSpace(*raw.Webhook)
+	}
+	if raw.AlertFails != nil {
+		farm.AlertFails = clampAlert(*raw.AlertFails)
+	}
 	if len(farm.Panels) == 0 && strings.TrimSpace(raw.BaseURL) != "" {
 		code := strings.TrimSpace(raw.AccessCode)
 		if code == "" {
@@ -169,7 +182,7 @@ func migrateFarm(raw rawFarm) FarmConfig {
 }
 
 func defaultFarm() FarmConfig {
-	return FarmConfig{Enabled: true, PushOnLogin: true, RepairMinutes: 30, Panels: []Panel{}}
+	return FarmConfig{Enabled: true, PushOnLogin: true, RepairMinutes: 30, AlertFails: 3, Panels: []Panel{}}
 }
 
 // clampRefresh 定时刷新下限 5 分钟：低于该值会不断重启面板会话，容易触发风控。
@@ -206,6 +219,17 @@ func clampRepair(v int) int {
 	}
 	if v > 1440 {
 		return 1440
+	}
+	return v
+}
+
+// clampAlert 连续失败告警阈值：1–10 次，0 视为默认 3。
+func clampAlert(v int) int {
+	if v <= 0 {
+		return 3
+	}
+	if v > 10 {
+		return 10
 	}
 	return v
 }

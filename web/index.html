@@ -239,6 +239,8 @@
   .notice .mini-btn:hover { color:var(--warn);background:var(--warn-soft);border-color:var(--warn); }
   #farmState { cursor:pointer; }
   #farmState:hover { border-color:var(--accent); }
+  #alertBadge { display:none; cursor:pointer; color:var(--err); background:var(--err-soft); border-color:color-mix(in srgb, var(--err) 26%, transparent); }
+  #alertBadge.show { display:inline-flex; }
   @keyframes float { 0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)} }
   .err-text { color:var(--err);font-size:12px;margin-top:10px;white-space:pre-wrap; }
   tr.group-start td { border-top: 1px solid var(--line2); }
@@ -721,6 +723,370 @@
     .wrap { padding-bottom:92px; }
     #ipcState { display:none; }
   }
+
+  /* ================= 3.7.9 现代风格 ================= */
+  /* 令牌：更大圆角、更轻阴影，层次靠边界与留白而不是重投影 */
+  :root { --r: 18px; }
+  :root[data-theme='light'] {
+    --shadow: 0 1px 2px rgba(52,32,44,.05), 0 18px 42px -24px rgba(52,32,44,.30);
+  }
+  :root[data-theme='dark'] {
+    --shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 22px 48px -26px rgba(0,0,0,.85);
+  }
+  body {
+    font-family: "Inter","SF Pro Text",-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;
+    letter-spacing: 0; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    background:
+      radial-gradient(1100px 560px at 92% -12%, var(--head-glow1), transparent 62%),
+      radial-gradient(860px 480px at -10% 0%, var(--head-glow2), transparent 58%),
+      linear-gradient(180deg, var(--bg) 0%, color-mix(in srgb, var(--bg) 72%, var(--bg2)) 60%, var(--bg2) 150%);
+  }
+
+  /* 悬浮玻璃头部：去掉整条通栏，改为圆角卡片 */
+  header {
+    position: relative; top: auto; margin: 12px 0 0; padding: 13px 16px;
+    border: 1px solid color-mix(in srgb, var(--line) 84%, transparent);
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--card) 74%, transparent);
+    -webkit-backdrop-filter: blur(18px) saturate(1.3); backdrop-filter: blur(18px) saturate(1.3);
+    box-shadow: var(--shadow);
+  }
+  header::after { display: none; }
+  .logo { border-radius: 14px; box-shadow: none; }
+  .logo::after { display: none; }
+  .title-block h1 { font-size: 18px; font-weight: 700; letter-spacing: -.2px; }
+  .title-block .sub { font-size: 12px; }
+  .badge { background: color-mix(in srgb, var(--card2) 66%, transparent); border-radius: 999px; }
+  .head-actions .btn { border-radius: 11px; }
+
+  /* 标签栏：胶囊分段控件，吸顶悬浮 */
+  .tabs {
+    position: sticky; top: 10px; z-index: 25;
+    margin: 18px 0 20px; padding: 4px; gap: 4px;
+    border: 1px solid var(--line); border-radius: 999px;
+    background: color-mix(in srgb, var(--card2) 78%, transparent);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2);
+    box-shadow: inset 0 1px 2px color-mix(in srgb, var(--line) 36%, transparent), var(--shadow);
+  }
+  .tab { border-radius: 999px; padding: 8px 16px; font-size: 13px; font-weight: 500; }
+  .tab:hover { background: color-mix(in srgb, var(--card) 58%, transparent); }
+  .tab.active {
+    color: var(--accent); background: var(--card);
+    box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 10px 20px -12px var(--accent-glow);
+  }
+  .tab.active::after { display: none; }
+  .tab .cnt { padding: 1px 8px; font-size: 10.5px; border-radius: 999px; }
+
+  /* 统计卡：分离的圆角磁贴，替代合并长条 */
+  .stats {
+    display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px;
+    padding: 0; border: none; border-radius: 0; background: none; box-shadow: none; overflow: visible;
+  }
+  .stat {
+    padding: 16px 18px; border: 1px solid color-mix(in srgb, var(--line) 90%, var(--accent) 10%);
+    border-radius: 16px; background: var(--card-grad); box-shadow: var(--shadow);
+    transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+  }
+  .stat:hover {
+    transform: translateY(-3px); background: var(--card-grad);
+    border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+    box-shadow: 0 24px 46px -28px color-mix(in srgb, var(--accent) 42%, transparent), var(--shadow);
+  }
+  .stat .ico { width: 38px; height: 38px; border-radius: 12px; }
+  .stat .num { font-size: 22px; font-weight: 700; letter-spacing: -.5px; }
+  .stat .lbl { font-size: 11.5px; }
+  .stat .stat-note { color: var(--faint); }
+
+  /* 卡片与分组：统一大圆角与内边距 */
+  .card { border-radius: 18px; padding: 20px 22px; }
+  .card-head { margin-bottom: 15px; padding-bottom: 13px; }
+  .card-head h2 { font-size: 15px; font-weight: 600; letter-spacing: -.1px; }
+  .panel-card, .panel-row, .acc-card {
+    border-radius: 16px;
+    transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+  }
+  .panel-card:hover, .panel-row:hover, .acc-card:hover { transform: translateY(-2px); }
+  .settings-group { border-radius: 14px; }
+
+  /* 表格：更松的行高、轻微着色表头 */
+  th { padding: 10px; font-size: 11.5px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+  td { padding: 12px 10px; }
+  tbody tr:hover { background: color-mix(in srgb, var(--accent) 5%, var(--row-hover)); }
+  .table-wrap thead th { background: var(--card); }
+
+  /* 控件：统一 11px 圆角与柔和背景 */
+  .btn { border-radius: 11px; padding: 8px 16px; font-weight: 600; }
+  .btn.primary {
+    background: linear-gradient(135deg, var(--accent), var(--violet));
+    box-shadow: 0 10px 22px -10px var(--accent-glow);
+  }
+  .mini-btn { border-radius: 9px; }
+  .search, .sort-select, input[type=text], input[type=number], input[type=password] { border-radius: 11px; }
+  .search { background: color-mix(in srgb, var(--bg2) 86%, transparent); }
+  .acc-filter { background: color-mix(in srgb, var(--card2) 72%, transparent); }
+  .hist-filters { border-radius: 999px; }
+  .chip { border-radius: 999px; }
+
+  /* 浮层：抽屉与模态统一大圆角 */
+  .drawer { border-radius: 20px 0 0 20px; }
+  .panel-form { border-radius: 20px; }
+  .modal-mask { background: rgba(14,9,18,.5); }
+  #toast { border-radius: 14px; }
+  footer { margin-top: 26px; padding-top: 16px; }
+
+  @media (max-width: 960px) {
+    .stats { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  }
+  @media (max-width: 640px) {
+    header { margin-top: 10px; padding: 14px; border-radius: 16px; }
+    .title-block h1 { font-size: 16.5px; }
+    .stats { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat { padding: 13px 14px; border-radius: 15px; }
+    .stat .num { font-size: 19px; }
+    .tabs {
+      position: fixed; left: 0; right: 0; top: auto; bottom: 0; z-index: 45;
+      margin: 0; padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+      border-width: 1px 0 0; border-radius: 0;
+      box-shadow: 0 -10px 30px rgba(0,0,0,.18);
+    }
+    .tab { border-radius: 10px; padding: 7px 4px; font-size: 11.5px; }
+    .tab.active { background: var(--accent-soft); box-shadow: none; }
+    body { padding-bottom: 74px; }
+    .wrap { padding-bottom: 92px; }
+  }
+
+  /* ================= 3.7.10 现代工作台 ================= */
+  .tab-ico { width:16px; height:16px; flex:none; opacity:.72; transition:opacity .15s; }
+  .tab.active .tab-ico { opacity:1; }
+
+  /* 卡片与控件细节：更克制的边界、更清晰的交互反馈 */
+  .card, .panel-card, .acc-card, .settings-group { background: var(--card-grad); }
+  .card { border-color: color-mix(in srgb, var(--line) 86%, var(--accent) 14%); }
+  .card-head h2 { letter-spacing: -.15px; }
+  .chip { font-weight: 500; }
+  .chip.active { background: var(--accent); border-color: transparent; color: var(--on-brand); box-shadow: 0 8px 18px -10px var(--accent-glow); }
+  tbody tr { transition: background .15s ease; }
+  .btn { transition: border-color .15s, background .15s, transform .15s, box-shadow .15s; }
+  .btn:hover { transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn.primary {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--violet) 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 10px 22px -10px var(--accent-glow);
+  }
+  .btn.primary:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,.22), 0 16px 28px -12px var(--accent-glow-strong); }
+  input:focus, select:focus, textarea:focus {
+    border-color: color-mix(in srgb, var(--accent) 52%, var(--line)) !important;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent);
+  }
+  .stat .ico { box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent); }
+  .stat .num { font-variant-numeric: tabular-nums; }
+
+  /* 桌面端：左侧工作台导航 */
+  @media (min-width: 1024px) {
+    body { padding-left: 236px; }
+    .wrap { max-width: 1240px; padding: 0 30px 56px; }
+    .tabs {
+      position: fixed; inset: 0 auto 0 0; top: 0; left: 0; right: auto; bottom: 0;
+      width: 236px; height: 100vh; display: flex; flex-direction: column;
+      align-items: stretch; justify-content: flex-start; gap: 4px;
+      margin: 0; padding: 22px 14px; border: none; border-right: 1px solid var(--line);
+      border-radius: 0; overflow: visible; box-shadow: none;
+      background: color-mix(in srgb, var(--card) 64%, transparent);
+      -webkit-backdrop-filter: blur(22px) saturate(1.25); backdrop-filter: blur(22px) saturate(1.25);
+    }
+    .tabs::before {
+      content: "WORKSPACE"; display: block; padding: 2px 12px 14px;
+      color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .18em;
+    }
+    .tab {
+      position: relative; flex: none; width: 100%; justify-content: flex-start;
+      gap: 10px; padding: 10px 12px; border-radius: 11px;
+      font-size: 13.5px; font-weight: 500; text-align: left; color: var(--muted);
+    }
+    .tab:hover { background: var(--row-hover); color: var(--text); }
+    .tab.active {
+      color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+    }
+    .tab.active::before {
+      content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+      width: 3px; height: 18px; border-radius: 0 3px 3px 0; background: var(--accent);
+    }
+    .tab .cnt { margin-left: auto; }
+    header { margin-top: 22px; }
+  }
+
+  /* 中屏：导航保持顶部胶囊，但图标跟随文字 */
+  @media (min-width:641px) and (max-width:1023px) {
+    .tab { gap: 7px; }
+  }
+
+  /* 手机端：底部图标导航 + 角标 */
+  @media (max-width: 640px) {
+    .tab { position: relative; gap: 2px; }
+    .tab-ico { width: 19px; height: 19px; }
+    .tab .cnt { position: absolute; top: 3px; right: 9px; font-size: 9.5px; padding: 0 5px; }
+    .stat { box-shadow: none; }
+    .btn.primary { box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 8px 18px -12px var(--accent-glow); }
+  }
+
+  /* ================= 3.7.12 现代后台风（侧栏 + 顶栏 + 渐变卡片） ================= */
+  .side-brand, .crumb, .avatar, .page-tabs { display: none; }
+  .greet {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    margin: 16px 0 0; padding: 18px 22px; border-radius: 16px;
+    border: 1px solid var(--line);
+    background: linear-gradient(120deg, color-mix(in srgb, var(--blue) 9%, var(--card)), color-mix(in srgb, var(--violet) 12%, var(--card)));
+    animation: rise .4s ease both;
+  }
+  .greet .g-av {
+    width: 48px; height: 48px; border-radius: 50%; flex: none; display: grid; place-items: center;
+    background: linear-gradient(135deg, #4f7cff, #7c5cff); color: #fff; font-weight: 700; font-size: 17px;
+    box-shadow: 0 8px 20px -8px rgba(79,124,255,.6);
+  }
+  .greet .g-main { flex: 1 1 240px; min-width: 0; }
+  .greet .g-hi { font-size: 17px; font-weight: 650; letter-spacing: -.2px; }
+  .greet .g-sub { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .greet .g-nums { display: flex; gap: 28px; flex-wrap: wrap; }
+  .greet .g-nums div { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.25; }
+  .greet .g-nums b { font-size: 20px; font-variant-numeric: tabular-nums; }
+  .greet .g-nums span { color: var(--muted); font-size: 11.5px; }
+
+  /* 四张渐变统计卡 */
+  .stat[data-stat] {
+    color: #fff; border: none; min-height: 112px;
+    align-items: flex-start; position: relative; overflow: hidden;
+    padding: 18px 20px;
+  }
+  .stat[data-stat='all'] { background: linear-gradient(135deg, #ff6a8a 0%, #ff8f5c 100%); }
+  .stat[data-stat='online'] { background: linear-gradient(135deg, #7c5cff 0%, #a78bfa 100%); }
+  .stat[data-stat='pending'] { background: linear-gradient(135deg, #2f7bff 0%, #59b6ff 100%); }
+  .stat[data-stat='activity'] { background: linear-gradient(135deg, #ff9d4d 0%, #ff6d5c 100%); }
+  .stat[data-stat]::after {
+    content: ""; position: absolute; right: -34px; bottom: -46px; width: 132px; height: 132px;
+    border-radius: 50%; background: rgba(255,255,255,.10); pointer-events: none;
+  }
+  .stat[data-stat] .body { flex: 1; min-width: 0; position: relative; z-index: 1; }
+  .stat[data-stat] .num { font-size: 27px; color: #fff; }
+  .stat[data-stat] .lbl { color: rgba(255,255,255,.84); }
+  .stat[data-stat] .stat-note { display: none; }
+  .stat[data-stat] .ico {
+    position: absolute; right: 16px; top: 16px; z-index: 1;
+    width: 34px; height: 34px; border-radius: 10px; color: #fff;
+    background: rgba(255,255,255,.2); box-shadow: none;
+  }
+  .stat[data-stat] .ico svg { width: 17px; height: 17px; }
+  .stat[data-stat] .donut { display: none; }
+  .stat[data-stat]:hover { transform: translateY(-3px); box-shadow: 0 18px 34px -18px rgba(20,16,40,.45); border: none; }
+  .stat[data-stat]:hover .num { color: #fff; }
+
+  @media (max-width: 640px) {
+    .greet { padding: 14px 16px; gap: 12px; margin-top: 12px; border-radius: 14px; }
+    .greet .g-av { width: 40px; height: 40px; font-size: 15px; }
+    .greet .g-hi { font-size: 15px; }
+    .greet .g-nums { gap: 20px; width: 100%; }
+    .greet .g-nums b { font-size: 17px; }
+    .stat[data-stat] { min-height: 96px; padding: 14px 15px; }
+    .stat[data-stat] .num { font-size: 22px; }
+    .stat[data-stat] .ico { width: 29px; height: 29px; right: 12px; top: 12px; }
+  }
+
+  /* 桌面端（≥1024）：侧栏 + 面包屑顶栏 + 页面标签条 */
+  @media (min-width: 1024px) {
+    body { padding-left: 248px; }
+    .tabs {
+      width: 248px; padding: 18px 14px;
+      background: var(--card); border-right: 1px solid var(--line);
+      -webkit-backdrop-filter: none; backdrop-filter: none;
+    }
+    .tabs::before { display: none; }
+    .side-brand {
+      display: flex; align-items: center; gap: 10px;
+      padding: 4px 6px 16px; margin-bottom: 10px; border-bottom: 1px solid var(--line);
+    }
+    .side-brand .sb-logo {
+      width: 36px; height: 36px; border-radius: 10px; flex: none; display: grid; place-items: center;
+      background: linear-gradient(135deg, #4f7cff, #7c5cff); color: #fff;
+      box-shadow: 0 6px 16px -8px rgba(79,124,255,.8);
+    }
+    .side-brand .sb-logo svg { width: 20px; height: 20px; }
+    .side-brand .sb-name { font-size: 14.5px; font-weight: 700; letter-spacing: -.2px; line-height: 1.3; }
+    .side-brand .sb-sub { font-size: 10px; color: var(--faint); letter-spacing: .16em; }
+    .tab { padding: 10px 12px; border-radius: 10px; }
+    .tab.active {
+      background: color-mix(in srgb, var(--violet) 12%, transparent);
+      color: var(--violet); box-shadow: none;
+    }
+    .tab.active::before { display: none; }
+
+    header {
+      margin: 0 -30px; padding: 12px 30px; border-radius: 0;
+      background: color-mix(in srgb, var(--bg) 84%, transparent);
+    }
+    .logo, .title-block { display: none; }
+    .crumb { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+    .crumb .sep { color: var(--faint); }
+    .crumb strong { color: var(--text); font-weight: 600; }
+    .head-actions { margin-left: auto; }
+    .avatar {
+      display: flex; align-items: center; gap: 9px; padding-left: 12px;
+      margin-left: 4px; border-left: 1px solid var(--line);
+    }
+    .avatar .av {
+      width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+      background: linear-gradient(135deg, #ff8a5c, #ff5f8f); color: #fff; font-size: 13px; font-weight: 700;
+    }
+    .avatar .an { font-size: 12.5px; color: var(--muted); }
+
+    .page-tabs { display: flex; gap: 8px; margin: 16px 0 0; overflow-x: auto; padding-bottom: 2px; }
+    .ptab {
+      display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 9px;
+      border: 1px solid var(--line); background: var(--card); color: var(--muted);
+      font-size: 12.5px; font-weight: 500; cursor: pointer; transition: .15s;
+    }
+    .ptab:hover { color: var(--text); border-color: var(--line2); }
+    .ptab.active {
+      color: var(--violet); border-color: color-mix(in srgb, var(--violet) 34%, var(--line));
+      background: color-mix(in srgb, var(--violet) 8%, transparent);
+    }
+    .ptab svg { width: 14px; height: 14px; }
+  }
+
+  /* ================= 3.7.13 布局细节优化 ================= */
+  /* 顶栏管理员：胶囊用户块，文字不再竖排 */
+  .avatar .an { white-space: nowrap; }
+  @media (min-width: 1024px) {
+    .avatar {
+      flex: none; display: inline-flex; align-items: center; gap: 8px;
+      padding: 4px 11px 4px 4px; margin-left: 8px;
+      border: 1px solid var(--line); border-radius: 999px; background: var(--card);
+      transition: background .15s, border-color .15s;
+    }
+    .avatar:hover { background: var(--hover); border-color: var(--line2); }
+    .avatar::after { content: "▾"; font-size: 9px; color: var(--faint); }
+    .avatar .av { width: 30px; height: 30px; border-radius: 50%; box-shadow: none; }
+    .avatar .an { color: var(--text); font-weight: 500; line-height: 1.2; }
+  }
+
+  /* 面板卡片：桌面两列，操作按钮单行，账号胶囊自动换行 */
+  .panel-card { padding: 18px 20px; }
+  .panel-accs { align-items: flex-start; }
+  .panel-accs-scroll { flex-wrap: wrap; overflow: visible; padding-bottom: 0; row-gap: 6px; }
+  .panel-accs-scroll .pill { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .panel-actions { flex-wrap: wrap; row-gap: 8px; }
+  .panel-actions .mini-btn { white-space: nowrap; }
+  @media (min-width: 1024px) {
+    .panel-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr)); gap: 18px; }
+  }
+
+  /* 设置页：两列分组，充分利用卡片宽度 */
+  #cfg { max-width: none; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+  #cfg .settings-group { grid-template-columns: 104px minmax(0, 1fr); align-content: start; }
+  #cfg .settings-group:last-of-type,
+  #cfg .save-row { grid-column: 1 / -1; }
+  @media (max-width: 1023px) {
+    #cfg { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -736,10 +1102,12 @@
       <h1>农场桥接助手 <span class="badge" id="ver">v–</span></h1>
       <div class="sub">萌卡账号农场 Code → qq-farm-bot 多面板自动推送与可视化管控</div>
     </div>
+    <div class="crumb" aria-label="当前位置"><span>首页</span><span class="sep">/</span><strong id="crumbNow">账号管理</strong></div>
     <div class="head-actions">
       <div class="head-status">
       <span class="badge" id="ipcState"><span class="dot on"></span>IPC 已连接</span>
       <span class="badge" id="farmState" title="点击查看面板状态"><span class="dot mid"></span>面板检测中</span>
+      <span class="badge" id="alertBadge" title="连续推送失败，点击查看面板"><span class="dot off"></span><span id="alertText">告警</span></span>
       </div>
       <div class="head-controls">
       <button class="btn icon-only" id="btnTheme" title="切换主题（自动 / 浅色 / 深色）"></button>
@@ -752,17 +1120,64 @@
         <span class="btn-t">推送全部</span>
       </button>
       </div>
+      <div class="avatar" title="当前管理员">
+        <div class="av">管</div><span class="an">管理员</span>
+      </div>
     </div>
   </header>
 
   <nav class="tabs" id="tabs" role="tablist" aria-label="功能分区">
-    <button class="tab active" id="tab-accounts" role="tab" aria-selected="true" aria-controls="panel-accounts" data-tab="accounts">账号管理 <span class="cnt" id="tabCntAccounts">–</span></button>
-    <button class="tab" id="tab-panels" role="tab" aria-selected="false" aria-controls="panel-panels" tabindex="-1" data-tab="panels">farm 面板 <span class="cnt" id="tabCntPanels">–</span></button>
-    <button class="tab" id="tab-activity" role="tab" aria-selected="false" aria-controls="panel-activity" tabindex="-1" data-tab="activity">动态 <span class="cnt" id="tabCntActivity">–</span></button>
-    <button class="tab" id="tab-settings" role="tab" aria-selected="false" aria-controls="panel-settings" tabindex="-1" data-tab="settings">设置</button>
+    <div class="side-brand">
+      <div class="sb-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9"/><path d="M12 9C12 5 9 3 5 3c0 4 3 6 7 6z" fill="currentColor" fill-opacity=".28"/><path d="M12 13c0-4 3-6 7-6 0 4-3 6-7 6z" fill="currentColor" fill-opacity=".28"/></svg>
+      </div>
+      <div>
+        <div class="sb-name">农场桥接助手</div>
+        <div class="sb-sub">FARM BRIDGE</div>
+      </div>
+    </div>
+    <button class="tab active" id="tab-accounts" role="tab" aria-selected="true" aria-controls="panel-accounts" data-tab="accounts">
+      <svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
+      <span>账号管理</span> <span class="cnt" id="tabCntAccounts">–</span></button>
+    <button class="tab" id="tab-panels" role="tab" aria-selected="false" aria-controls="panel-panels" tabindex="-1" data-tab="panels">
+      <svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
+      <span>farm 面板</span> <span class="cnt" id="tabCntPanels">–</span></button>
+    <button class="tab" id="tab-activity" role="tab" aria-selected="false" aria-controls="panel-activity" tabindex="-1" data-tab="activity">
+      <svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
+      <span>动态</span> <span class="cnt" id="tabCntActivity">–</span></button>
+    <button class="tab" id="tab-settings" role="tab" aria-selected="false" aria-controls="panel-settings" tabindex="-1" data-tab="settings">
+      <svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 3.6 15a1.7 1.7 0 0 0-1.55-1H2a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 3.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 8 4.6h.09A1.7 1.7 0 0 0 9 3.05V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>
+      <span>设置</span></button>
   </nav>
 
+  <div class="page-tabs" id="pageTabs" aria-label="页面标签">
+    <button class="ptab active" data-ptab="accounts">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21V12h6v9"/></svg>首页
+    </button>
+    <button class="ptab" data-ptab="panels">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>面板
+    </button>
+    <button class="ptab" data-ptab="activity">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>动态
+    </button>
+    <button class="ptab" data-ptab="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 3.6 15a1.7 1.7 0 0 0-1.55-1H2a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 3.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 8 4.6h.09A1.7 1.7 0 0 0 9 3.05V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>设置
+    </button>
+  </div>
+
   <section class="tab-panel active" id="panel-accounts" role="tabpanel" aria-labelledby="tab-accounts" data-panel="accounts">
+  <section class="greet" id="greet" aria-label="今日概览">
+    <div class="g-av">农</div>
+    <div class="g-main">
+      <div class="g-hi" id="greetHi">你好，管理员</div>
+      <div class="g-sub" id="greetSub">正在加载今日概览…</div>
+    </div>
+    <div class="g-nums">
+      <div><b id="greetAccounts">–</b><span>账号</span></div>
+      <div><b id="greetPending">–</b><span>待处理</span></div>
+      <div><b id="greetActivity">–</b><span>今日动态</span></div>
+    </div>
+  </section>
   <div class="notice" id="noPanelNotice" style="display:none">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
     <span>还没有配置 farm 面板，账号 Code 暂时无处推送</span>
@@ -848,6 +1263,7 @@
         </button>
         </div>
       </div>
+      <div class="faint" id="retryHint" style="margin:-4px 0 12px"></div>
       <div class="panel-grid" id="panelList"></div>
       <div class="faint" style="margin-top:12px">★ 为当前推送目标（上线 / 定时刷新 / 推送全部均发往此面板）<br>
         旧版 qq-farm-bot：填写访问 Code；qq-farm-bot-404：填管理员用户名密码，或直接粘贴面板左下角「我的 Token」。Token 随面板重启/退出登录失效，失效后重新粘贴即可。</div>
@@ -896,7 +1312,7 @@
           <span class="faint" id="cfgSummary" style="font-weight:400"></span>
         </h2>
       </div>
-      <form class="form" id="cfg" onsubmit="return false" style="max-width:660px">
+      <form class="form" id="cfg" onsubmit="return false">
         <fieldset class="settings-group">
           <legend>自动推送</legend>
           <label for="f_enabled">启用推送</label>
@@ -914,6 +1330,13 @@
           <div class="field"><input type="number" id="f_repairMinutes" min="5" max="1440"><small>每 N 分钟检查一次：面板里已停止的账号自动补推；已推送过但被删除的账号补回当前面板</small></div>
           <label for="f_staleHours">Code 保鲜</label>
           <div class="field"><input type="number" id="f_staleHours" min="0" max="168"><small>在线账号 Code 超过 N 小时自动重推一次（0 关闭）；仅重推已推送过的账号，不会新增</small></div>
+        </fieldset>
+        <fieldset class="settings-group">
+          <legend>失败告警</legend>
+          <label for="f_alertFails">告警阈值</label>
+          <div class="field"><input type="number" id="f_alertFails" min="1" max="10"><small>同一面板连续推送失败 N 次后触发告警；失败会自动按 30 秒 / 2 分钟 / 5 分钟重试，面板恢复后自动解除</small></div>
+          <label for="f_webhook">Webhook</label>
+          <div class="field"><input type="url" id="f_webhook" placeholder="https://example.com/hook"><small>可选。失败与恢复时向该地址 POST JSON（title / detail / level / text / time），适用于自定义机器人或中转服务</small></div>
         </fieldset>
         <div class="save-row" id="saveRow"><span class="dirty">● 有未保存的更改</span><button class="btn primary" id="btnSave">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>保存设置</button></div>
@@ -1039,6 +1462,9 @@ set('btnTheme', b => b.onclick = () => {
 /* ---------- 标签页 ---------- */
 const TAB_KEY = 'mengka-admin-tab'
 function showTab(name) {
+  const TAB_TITLES = { accounts: '首页', panels: 'farm 面板', activity: '推送动态', settings: '设置' }
+  document.querySelectorAll('.ptab').forEach(t => t.classList.toggle('active', t.dataset.ptab === name))
+  set('crumbNow', el => el.textContent = TAB_TITLES[name] || '首页')
   document.querySelectorAll('.tab').forEach(t => {
     const on = t.dataset.tab === name
     t.classList.toggle('active', on)
@@ -1049,6 +1475,7 @@ function showTab(name) {
   localStorage.setItem(TAB_KEY, name)
 }
 document.querySelectorAll('.tab').forEach(t => t.onclick = () => showTab(t.dataset.tab))
+document.querySelectorAll('.ptab').forEach(t => t.onclick = () => showTab(t.dataset.ptab))
 // 标签页键盘导航：左右方向键 / Home / End
 $('tabs')?.addEventListener('keydown', e => {
   if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return
@@ -1066,6 +1493,7 @@ showTab(localStorage.getItem(TAB_KEY) || 'accounts')
 // 空面板引导 + 顶部状态徽章跳转
 set('btnGoPanels', b => b.onclick = () => showTab('panels'))
 set('farmState', el => el.onclick = () => showTab('panels'))
+set('alertBadge', el => el.onclick = () => showTab('panels'))
 // 账号筛选：全部 / 仅在线
 document.querySelectorAll('.chip[data-filter]').forEach(c => c.onclick = () => {
   accFilter = c.dataset.filter
@@ -1510,6 +1938,18 @@ function render(s){
       else if(panels.some(p=>p.ok)) el.innerHTML=`<span class="dot on"></span>${panels.filter(p=>p.ok).length}/${panels.length} 面板正常`
       else el.innerHTML='<span class="dot off"></span>面板均不可达'
     })
+    const alerts=panels.filter(p=>p.alert)
+    set('alertBadge', el => {
+      el.classList.toggle('show', alerts.length>0)
+      if(alerts.length) $('alertText').textContent=`${alerts.length} 个面板告警`
+    })
+    set('retryHint', el => {
+      const rs=Array.isArray(s.retries)?s.retries:[]
+      if(!rs.length){ el.textContent=''; return }
+      const next=Math.min(...rs.map(r=>Number(r.next_at)||0))
+      const secs=Math.max(0,Math.ceil((next-Date.now())/1000))
+      el.innerHTML=`<span class="pill y">${rs.length} 条推送失败待重试</span> 最近一次约 ${secs} 秒后执行`
+    })
 
     const allGroups=collectGroups(s)
     const online=allGroups.filter(g=>g.instances.some(a=>a.online)).length
@@ -1522,6 +1962,18 @@ function render(s){
     numUp('stPending',allGroups.filter(g=>syncStatus(g,s).pending).length)
     const pushed=allGroups.filter(g=>g.codeAge!=null).sort((a,b)=>a.codeAge-b.codeAge)
     set('stLastPush', e => {e.textContent=pushed.length?new Date(s.now-pushed[0].codeAge).toLocaleTimeString('zh-CN',{hour12:false}):'暂无';e.title=pushed.length?pushTime(pushed[0],s):'暂无成功推送记录'})
+    /* 概览问候卡 */
+    const nowMs=Number(s.now)||Date.now()
+    const todayStart=new Date(nowMs); todayStart.setHours(0,0,0,0)
+    const todayCount=(s.history||[]).filter(h=>Number(h.time)>=todayStart.getTime()).length
+    const pendCount=allGroups.filter(g=>syncStatus(g,s).pending).length
+    const hour=new Date(nowMs).getHours()
+    const hiWord=hour<6?'夜深了':hour<12?'上午好':hour<18?'下午好':'晚上好'
+    set('greetHi', e=>e.textContent=`${hiWord}，管理员`)
+    set('greetSub', e=>e.textContent=`${allGroups.length} 个账号 · ${online} 个在线 · ${pendCount} 个待处理 · 今日 ${todayCount} 条动态`)
+    set('greetAccounts', e=>e.textContent=allGroups.length)
+    set('greetPending', e=>e.textContent=pendCount)
+    set('greetActivity', e=>e.textContent=todayCount)
     set('accountCount', e=>e.textContent=allGroups.length+' 个账号 · '+s.accounts.length+' 个实例')
     renderDonut(online,allGroups.length)
 
@@ -1693,6 +2145,8 @@ function render(s){
     set('f_staleHours', e => e.value=cfg.staleHours??0)
     set('f_autoRepair', e => e.checked=!!cfg.autoRepair)
     set('f_repairMinutes', e => e.value=cfg.repairMinutes??30)
+    set('f_alertFails', e => e.value=cfg.alertFails??3)
+    set('f_webhook', e => e.value=cfg.webhook||'')
     set('cfgSummary', e => e.textContent=cfg.enabled
       ?`已启用 · ${panels.filter(p=>p.ok).length}/${panels.length} 面板正常 · 每${cfg.refreshMinutes||0}分钟刷新${cfg.staleHours>0?' · 保鲜 '+cfg.staleHours+'h':''}`
       :'未启用')
@@ -1830,6 +2284,7 @@ function renderPanels(s){
         ${accSummary}
         ${p.warning?`<span class="pill y" title="${esc(p.warning)}">默认密码</span>`:''}
         ${p.authBlocked?`<span class="pill y" title="${esc(p.authError||'认证失败')}">认证失败 · 自动推送暂停</span>`:''}
+        ${p.fails>0?`<span class="pill ${p.alert?'y':'n'}" title="${p.alert?'已触发告警，推送成功后自动解除':'连续推送失败次数'}">失败 ${p.fails} 次${p.alert?' · 告警':''}</span>`:''}
         <span class="panel-check">最近检查 ${p.checkedAt?new Date(p.checkedAt).toLocaleTimeString('zh-CN',{hour12:false}):'尚未检查'}</span>
       </div>
       ${accChips?`<div class="panel-accs"><span class="panel-accs-label">面板账号</span><div class="panel-accs-scroll">${accChips}</div></div>`:''}
@@ -2036,6 +2491,8 @@ set('btnSave', b => b.onclick=async ()=>{
       staleHours:Number($('f_staleHours')?.value)||0,
       autoRepair:$('f_autoRepair')?.checked,
       repairMinutes:Number($('f_repairMinutes')?.value)||30,
+      alertFails:Number($('f_alertFails')?.value)||3,
+      webhook:($('f_webhook')?.value||'').trim(),
     }})
     toast('设置已保存，立即生效')
     set('saveRow', r => r.classList.remove('dirty-on'))
