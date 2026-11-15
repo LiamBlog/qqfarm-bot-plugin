@@ -21,6 +21,7 @@
     --ring: rgba(98,80,216,.55); --on-brand: #fff; --switch-on-knob: #fff;
     --card-highlight: rgba(255,255,255,.9);
     --r: 14px; color-scheme: dark; accent-color: var(--accent);
+    --tabbar: 0px;
   }
   :root[data-theme='dark'] {
     --bg:#0b0a10; --bg2:#111017; --card:#16141e; --card2:#1d1a27; --hover:#262231;
@@ -75,9 +76,6 @@
   }
   .stat { animation: rise .45s ease both; }
   .stat:nth-child(1){animation-delay:.05s}.stat:nth-child(2){animation-delay:.12s}.stat:nth-child(3){animation-delay:.19s}.stat:nth-child(4){animation-delay:.26s}
-  .grid>.card,.grid>div>.card { animation: rise .5s ease both; }
-  .grid>.card { animation-delay:.22s; }
-  .grid>div>.card:nth-child(1){animation-delay:.3s}.grid>div>.card:nth-child(2){animation-delay:.38s}.grid>div>.card:nth-child(3){animation-delay:.46s}
 
   .logo { width:44px;height:44px;border-radius:13px;flex:none;background:linear-gradient(135deg,var(--accent),var(--violet));display:grid;place-items:center;color:var(--on-brand);box-shadow:0 6px 18px var(--accent-glow); }
   .logo svg { width:24px;height:24px; }
@@ -123,8 +121,6 @@
   .donut .val { stroke:var(--ok);stroke-linecap:round;transition:stroke-dashoffset .6s ease; }
   .donut .pct { position:absolute;inset:0;display:grid;place-items:center;font-size:10.5px;font-weight:700; }
 
-  .grid { display:grid;grid-template-columns:1fr 380px;gap:16px;margin-top:16px;align-items:start; }
-
   /* ================= 标签页导航 ================= */
   .tabs { display:flex; gap:6px; margin:20px 0 18px; background:var(--card2); padding:5px; border-radius:13px; border:1px solid var(--line); overflow-x:auto; }
   .tab { flex:1; min-width:112px; display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:9px 14px; border-radius:10px; cursor:pointer; color:var(--muted); font-size:13.5px; font-weight:500; border:none; background:transparent; white-space:nowrap; transition:.15s; }
@@ -157,14 +153,23 @@
   .diag-item { display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);flex-wrap:wrap; }
   .diag-item:last-child { border-bottom:none; }
   .diag-item .faint { margin-left:auto; }
-  .timeline { max-height:none; }
   .card { background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;box-shadow:var(--shadow); }
   .card+.card { margin-top:16px; }
   .card-head { display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:13px;flex-wrap:wrap; }
   .card-head h2 { font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px; }
   .card-head h2 svg { width:16px;height:16px;color:var(--accent); }
   .head-right { display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap; }
-  .faint { color:var(--faint);font-size:12px; } .muted{color:var(--muted);font-size:12px;}
+  .faint { color:var(--faint);font-size:12px; }
+  /* 通用小工具类（替代原先散落的内联样式） */
+  .btn-compact { padding:7px 14px; }
+  .hint { margin-top:12px; }
+  .hint-row { display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px; }
+  .retry-hint { margin:-4px 0 12px; }
+  .sub-note { font-size:11px;margin-top:5px; }
+  .dw-msg { flex:1;min-width:0;word-break:break-all; }
+  .dw-broadcast { margin-top:8px;width:100%;justify-content:center; }
+  .diagAct { margin-left:auto; }
+  .card-head h2 .faint { font-weight:400; }
 
   .table-wrap { overflow-x:auto;margin:0 -4px; }
   /* 手机端账号卡片（桌面隐藏，≤640px 替代表格） */
@@ -247,9 +252,9 @@
   .agg { display:inline-flex;gap:4px;align-items:center;margin-left:2px; }
   .agg .pill { padding:1px 7px;font-size:11px; }
 
-  /* 动态流 */
-  .timeline { display:flex;flex-direction:column;gap:2px;max-height:300px;overflow-y:auto;margin:0 -4px; }
-  .tl-day { position:sticky;top:0;z-index:1;background:var(--card);color:var(--faint);font-size:11px;font-weight:600;letter-spacing:.05em;padding:7px 4px 3px; }
+  /* 动态流：随页面自然延展，避免卡片内嵌套滚动条 */
+  .timeline { display:flex;flex-direction:column;gap:2px;margin:0 -4px; }
+  .tl-day { color:var(--faint);font-size:11px;font-weight:600;letter-spacing:.05em;padding:10px 4px 4px; }
   .tl-item { display:flex;gap:10px;padding:7px 6px;border-radius:9px;align-items:flex-start; }
   .tl-item:hover { background:var(--row-hover); }
   .tl-ico { width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex:none;margin-top:1px; }
@@ -262,8 +267,6 @@
   .hf-btn { border:none;background:transparent;color:var(--muted);font-size:12px;padding:4px 11px;border-radius:999px;cursor:pointer;font-weight:500;transition:.15s; }
   .hf-btn:hover { color:var(--text); }
   .hf-btn.active { background:var(--accent-soft);color:var(--accent);font-weight:600; }
-  .code-age { display:inline-flex;align-items:center;gap:4px;margin-top:4px;font-size:11px; }
-  .code-age .pill { padding:1px 7px;font-size:11px; }
   .tl-body { flex:1;min-width:0; }
   .tl-msg { font-size:12.5px;line-height:1.45;word-break:break-all; }
   .tl-time { color:var(--faint);font-size:11px; }
@@ -277,11 +280,13 @@
   .chip.active { color:var(--accent);border-color:var(--accent);background:var(--accent-soft);font-weight:600; }
   .skeleton td{color:transparent}.skeleton .bar{display:inline-block;height:12px;border-radius:6px;background:linear-gradient(90deg,var(--card2) 25%,var(--hover) 50%,var(--card2) 75%);background-size:200% 100%;animation:shine 1.2s infinite;}
   .sk-bar{display:inline-block;height:12px;border-radius:6px;background:linear-gradient(90deg,var(--card2) 25%,var(--hover) 50%,var(--card2) 75%);background-size:200% 100%;animation:shine 1.2s infinite;}
+  .bar,.sk-bar{width:var(--w,96px);}
+  .sk-avatar{width:32px;height:32px;border-radius:10px;}
+  .sk-body{flex:1;}
+  .sk-sub{margin-top:7px;}
   @keyframes shine { to{background-position:-200% 0} }
 
   /* 面板列表 */
-  .panel-row { border:1px solid var(--line);border-radius:12px;padding:12px 13px;margin-top:10px;background:var(--bg2); }
-  .panel-row.active { border-color:var(--accent);box-shadow:0 0 0 1px var(--accent-soft) inset; }
   .panel-top { display:flex;align-items:flex-start;gap:9px; }
   .panel-heading { flex:1; min-width:0; }
   .panel-name { font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0; }
@@ -319,10 +324,6 @@
   .switch i::after{content:"";position:absolute;width:17px;height:17px;border-radius:50%;background:#fff;top:3px;left:3px;transition:.2s;box-shadow:0 1px 4px rgba(0,0,0,.35)}
   .switch input:checked+i{background:var(--accent)}.switch input:checked+i::after{left:22px;background:var(--switch-on-knob)}
   .save-row{grid-column:1/-1;display:flex;justify-content:flex-end;margin-top:2px;}
-  .cfg-body { display: block; }
-  #settingsCard.collapsed .cfg-body { display: none; }
-  #btnSettings svg { transition: transform .2s; }
-  #settingsCard.collapsed #btnSettings svg { transform: rotate(-90deg); }
   footer { margin-top:22px;color:var(--faint);font-size:11.5px;text-align:center; }
   footer code{background:var(--card2);padding:1px 7px;border-radius:6px;font-size:11px;}
 
@@ -447,6 +448,8 @@
 
   .c-check { width:34px;padding-right:0;text-align:center; }
   .c-check input { accent-color:var(--accent);width:14px;height:14px;cursor:pointer;vertical-align:middle; }
+  /* 移动端卡片内的复选框（自身即 .c-check，需单独定尺） */
+  .acc-inst .rowCheck { width:14px;height:14px;accent-color:var(--accent);cursor:pointer;vertical-align:middle; }
   .bulk-bar { display:none;align-items:center;gap:6px;margin-left:auto;padding:3px 9px;border-radius:999px;background:var(--accent-soft); }
   .bulk-bar.show { display:flex; }
   .bulk-bar #bulkCount { font-size:12px;font-weight:600;color:var(--accent); }
@@ -457,14 +460,12 @@
   }
 
   /* 抽屉内操作行 */
-  .dw-actions { display:flex;gap:6px;margin-top:6px; }
-  .dw-actions .mini-btn { flex:1;justify-content:center; }
   .dw-remark-form { display:flex;gap:6px;width:100%; }
   .dw-remark-form input { flex:1;min-width:0;background:var(--bg2);border:1px solid var(--line2);color:var(--text);
     border-radius:8px;padding:5px 9px;font-size:12.5px;outline:none; }
   .dw-remark-form input:focus { border-color:var(--violet); }
 
-  @media (max-width:960px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:960px){.stats{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:640px){
     .btn-t{display:none}
     .btn{padding:8px 11px}
@@ -505,8 +506,8 @@
   .acc-filter .chip.active { border-color:transparent; }
   .sort-select, .search { height:32px; }
   .search { box-shadow:inset 0 1px 2px color-mix(in srgb,var(--line) 40%,transparent); }
-  .panel-row, .panel-card, .acc-card { box-shadow:0 2px 10px color-mix(in srgb,var(--line) 24%,transparent); }
-  .panel-row:hover, .panel-card:hover, .acc-card:hover { border-color:color-mix(in srgb,var(--accent) 45%,var(--line)); }
+  .panel-card, .acc-card { box-shadow:0 2px 10px color-mix(in srgb,var(--line) 24%,transparent); }
+  .panel-card:hover, .acc-card:hover { border-color:color-mix(in srgb,var(--accent) 45%,var(--line)); }
   .form input, .panel-form input { box-shadow:inset 0 1px 2px color-mix(in srgb,var(--line) 35%,transparent); }
   footer { padding-top:8px; border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent); }
 
@@ -619,11 +620,11 @@
     filter: brightness(1.05);
     box-shadow: inset 0 1px 0 rgba(255,255,255,.24), 0 8px 22px var(--accent-glow-strong);
   }
-  .panel-card, .panel-row, .acc-card {
+  .panel-card, .acc-card {
     border-color: color-mix(in srgb, var(--line) 92%, var(--accent) 8%);
     box-shadow: 0 2px 12px color-mix(in srgb, var(--line) 22%, transparent), inset 0 1px 0 var(--card-highlight);
   }
-  .panel-card:hover, .panel-row:hover, .acc-card:hover {
+  .panel-card:hover, .acc-card:hover {
     border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
     box-shadow: var(--shadow), inset 0 1px 0 var(--card-highlight);
   }
@@ -716,11 +717,14 @@
 
   /* 手机端：底部标签栏 + 状态聚合 */
   @media (max-width:640px){
+    :root { --tabbar: calc(74px + env(safe-area-inset-bottom)); }
     .tabs { position:fixed; left:0; right:0; bottom:0; top:auto; margin:0; border-radius:0; border-width:1px 0 0; padding:6px 6px calc(6px + env(safe-area-inset-bottom)); z-index:45; background:color-mix(in srgb,var(--card) 96%,transparent); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); box-shadow:0 -8px 24px rgba(0,0,0,.16); }
     .tab { min-width:0; flex:1; flex-direction:column; gap:3px; padding:7px 4px; font-size:11.5px; border-radius:9px; }
     .tab .cnt { font-size:10px; }
-    body { padding-bottom:74px; }
-    .wrap { padding-bottom:92px; }
+    body { padding-bottom:var(--tabbar); }
+    .wrap { padding-bottom:calc(var(--tabbar) + 18px); }
+    /* 吸底保存条抬到标签栏之上，避免被遮挡 */
+    .save-row { bottom:var(--tabbar); }
     #ipcState { display:none; }
   }
 
@@ -801,11 +805,11 @@
   .card { border-radius: 18px; padding: 20px 22px; }
   .card-head { margin-bottom: 15px; padding-bottom: 13px; }
   .card-head h2 { font-size: 15px; font-weight: 600; letter-spacing: -.1px; }
-  .panel-card, .panel-row, .acc-card {
+  .panel-card, .acc-card {
     border-radius: 16px;
     transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
   }
-  .panel-card:hover, .panel-row:hover, .acc-card:hover { transform: translateY(-2px); }
+  .panel-card:hover, .acc-card:hover { transform: translateY(-2px); }
   .settings-group { border-radius: 14px; }
 
   /* 表格：更松的行高、轻微着色表头 */
@@ -851,8 +855,8 @@
     }
     .tab { border-radius: 10px; padding: 7px 4px; font-size: 11.5px; }
     .tab.active { background: var(--accent-soft); box-shadow: none; }
-    body { padding-bottom: 74px; }
-    .wrap { padding-bottom: 92px; }
+    body { padding-bottom:var(--tabbar); }
+    .wrap { padding-bottom:calc(var(--tabbar) + 18px); }
   }
 
   /* ================= 3.7.10 现代工作台 ================= */
@@ -1255,16 +1259,16 @@
     <div class="card">
       <div class="card-head">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="3"/><path d="m10 9 4 3-4 3z"/></svg>farm 面板</h2>
-        <div style="display:flex;gap:6px">
+        <div class="head-right">
         <button class="mini-btn" id="btnRepairNow" type="button" title="立即检查面板账号：已停止的补推、已推送过但缺失的补回当前面板">立即巡检</button>
-        <button class="btn primary" id="btnAddPanel" style="padding:7px 14px">
+        <button class="btn primary btn-compact" id="btnAddPanel">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>添加面板
         </button>
         </div>
       </div>
-      <div class="faint" id="retryHint" style="margin:-4px 0 12px"></div>
+      <div class="faint retry-hint" id="retryHint"></div>
       <div class="panel-grid" id="panelList"></div>
-      <div class="faint" style="margin-top:12px">★ 为当前推送目标（上线 / 定时刷新 / 推送全部均发往此面板）<br>
+      <div class="faint hint">★ 为当前推送目标（上线 / 定时刷新 / 推送全部均发往此面板）<br>
         旧版 qq-farm-bot：填写访问 Code；qq-farm-bot-404：填管理员用户名密码，或直接粘贴面板左下角「我的 Token」。Token 随面板重启/退出登录失效，失效后重新粘贴即可。</div>
     </div>
 
@@ -1278,7 +1282,7 @@
         </button>
       </div>
       <div id="diagList"></div>
-      <div class="faint" style="margin-top:10px">对照萌卡实例与面板账号：未接入 / Code 过旧 / 面板账号已停止，支持逐项或一键处理</div>
+      <div class="faint hint">对照萌卡实例与面板账号：未接入 / Code 过旧 / 面板账号已停止，支持逐项或一键处理</div>
     </div>
   </section>
 
@@ -1308,7 +1312,7 @@
     <div class="card">
       <div class="card-head">
         <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></svg>推送设置
-          <span class="faint" id="cfgSummary" style="font-weight:400"></span>
+          <span class="faint" id="cfgSummary"></span>
         </h2>
       </div>
       <form class="form" id="cfg" onsubmit="return false">
@@ -1340,11 +1344,11 @@
         <div class="save-row" id="saveRow"><span class="dirty">● 有未保存的更改</span><button class="btn primary" id="btnSave">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>保存设置</button></div>
       </form>
-      <div class="faint" id="nextRun" style="margin-top:14px"></div>
+      <div class="faint hint" id="nextRun"></div>
       <section class="settings-tools" aria-labelledby="settingsToolsTitle">
       <h3 id="settingsToolsTitle">配置与诊断</h3>
       <div class="faint settings-instance">实例 <code id="fInstanceId">–</code> · 数据目录 <code id="fDataPath">–</code></div>
-      <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <div class="hint-row">
         <button class="mini-btn" id="btnExport" type="button" title="导出状态快照（不含面板凭据与账号 Code），便于反馈问题">导出诊断包</button>
         <button class="mini-btn" id="btnCfgExport" type="button" title="导出推送配置（不含访问 Code）">导出配置</button>
         <button class="mini-btn" id="btnCfgImport" type="button" title="从 JSON 导入推送配置">导入配置</button>
@@ -1381,7 +1385,7 @@
   <div class="pf-hint">旧版 qq-farm-bot 填访问 Code；qq-farm-bot-404 填用户名密码，或粘贴面板左下角「我的 Token」。Token 随面板重启/退出登录失效，失效后重新粘贴即可。</div>
   <div class="btns">
     <button class="mini-btn" id="pfCancel" type="button">取消</button>
-    <button class="btn primary" id="pfSave" type="button" style="padding:6px 14px">保存</button>
+    <button class="btn primary btn-compact" id="pfSave" type="button">保存</button>
   </div>
 </form>
 
@@ -1698,7 +1702,7 @@ function pushTime(g,s){
 }
 function syncMarkup(g,s){
   const st=syncStatus(g,s)
-  return `<span class="pill ${st.cls}" title="${esc(st.title||'当前目标面板状态')}">${st.label}</span><div class="faint" style="font-size:11px;margin-top:5px" title="跨面板最近成功推送">${g.codeAge==null?'暂无推送记录':'最近推送 '+esc(pushTime(g,s))}</div>`
+  return `<span class="pill ${st.cls}" title="${esc(st.title||'当前目标面板状态')}">${st.label}</span><div class="faint sub-note" title="跨面板最近成功推送">${g.codeAge==null?'暂无推送记录':'最近推送 '+esc(pushTime(g,s))}</div>`
 }
 
 /** 按 QQ 分组账号实例（供账号表与诊断复用）。 */
@@ -1749,7 +1753,7 @@ function renderAccountCards(groups, s, emptyMsg){
       const canSelect=a.online&&isAndroid
       return `<div class="acc-inst">
         <div class="acc-row">
-          ${canSelect?`<input type="checkbox" class="rowCheck c-check" data-key="${cardKey}" ${selected.has(cardKey)?'checked':''} style="width:14px;height:14px;accent-color:var(--accent)">`:''}
+          ${canSelect?`<input type="checkbox" class="rowCheck c-check" data-key="${cardKey}" ${selected.has(cardKey)?'checked':''}>`:''}
           <span class="pill ${a.online?(isAndroid?'b':'n'):'n'}" title="${esc(a.protocol_version||a.platform||'')}">${isAndroid?ICONS.android:ICONS.pc}${esc(a.platform||'未知')} #${a.protocol_id}</span>
           <span class="pill ${a.online?'g':'r'}"><span class="dot"></span>${a.online?'在线':'离线'}</span>
           <span class="acc-meta">Lv.${esc(a.level??'–')} · 友 ${esc(a.friend_count??'–')} / 群 ${esc(a.group_count??'–')}</span>
@@ -1802,7 +1806,7 @@ function openAccount(selfId){
   const acts=(s.history||[]).filter(h=>String(h.message||'').includes(String(g.self_id))).slice(0,8)
   const actRows=acts.length?acts.map(h=>{
     const t=new Date(h.time||0).toLocaleTimeString('zh-CN',{hour12:false})
-    return `<div class="dw-item"><span class="tl-time">${t}</span><span style="flex:1;min-width:0;word-break:break-all">${esc(h.message)}</span></div>`
+    return `<div class="dw-item"><span class="tl-time">${t}</span><span class="dw-msg">${esc(h.message)}</span></div>`
   }).join(''):'<div class="faint">暂无相关动态</div>'
 
   $('drawerBody').innerHTML=`
@@ -1811,7 +1815,7 @@ function openAccount(selfId){
       <div class="dw-item" id="dwRemarkRow"><span>备注</span><span class="faint" id="dwRemarkText">${g.remark?esc(g.remark):'未设置'}</span>
         <button class="mini-btn" id="dwRemarkEdit" type="button">${ICONS.pencil}编辑</button></div>
     </div>
-    <div class="dw-sec"><h3>面板接入</h3>${panelRows}${panels.length?`<button class="mini-btn" id="dwBroadcast" type="button" style="margin-top:8px;width:100%;justify-content:center">${ICONS.upload}一键推送到全部面板</button>`:''}</div>
+    <div class="dw-sec"><h3>面板接入</h3>${panelRows}${panels.length?`<button class="mini-btn dw-broadcast" id="dwBroadcast" type="button">${ICONS.upload}一键推送到全部面板</button>`:''}</div>
     <div class="dw-sec"><h3>协议实例</h3>${instRows}</div>
     <div class="dw-sec"><h3>相关动态</h3>${actRows}</div>`
 
@@ -1887,12 +1891,12 @@ function closeDrawer(){
 
 function skeleton(){
   set('accounts', el => el.innerHTML = Array.from({length:3},()=>
-    `<tr class="skeleton"><td><span class="bar" style="width:120px"></span></td><td><span class="bar" style="width:70px"></span></td><td><span class="bar" style="width:60px"></span></td><td><span class="bar" style="width:50px"></span></td><td><span class="bar" style="width:34px"></span></td><td><span class="bar" style="width:56px"></span></td><td><span class="bar" style="width:70px"></span></td><td><span class="bar" style="width:96px"></span></td></tr>`).join(''))
+    `<tr class="skeleton"><td><span class="bar" style="--w:120px"></span></td><td><span class="bar" style="--w:70px"></span></td><td><span class="bar" style="--w:60px"></span></td><td><span class="bar" style="--w:50px"></span></td><td><span class="bar" style="--w:34px"></span></td><td><span class="bar" style="--w:56px"></span></td><td><span class="bar" style="--w:70px"></span></td><td><span class="bar" style="--w:96px"></span></td></tr>`).join(''))
   // 手机端卡片骨架，避免首屏空白
   set('accountCards', el => el.innerHTML = Array.from({length:2},()=>
-    `<div class="acc-card"><div class="acc-head"><span class="sk-bar" style="width:32px;height:32px;border-radius:10px"></span>
-      <div style="flex:1"><span class="sk-bar" style="width:96px"></span><div style="margin-top:7px"><span class="sk-bar" style="width:64px"></span></div></div></div>
-      <div class="acc-inst"><span class="sk-bar" style="width:140px"></span><span class="sk-bar" style="width:90px"></span></div></div>`).join(''))
+    `<div class="acc-card"><div class="acc-head"><span class="sk-bar sk-avatar"></span>
+      <div class="sk-body"><span class="sk-bar" style="--w:96px"></span><div class="sk-sub"><span class="sk-bar" style="--w:64px"></span></div></div></div>
+      <div class="acc-inst"><span class="sk-bar" style="--w:140px"></span><span class="sk-bar" style="--w:90px"></span></div></div>`).join(''))
 }
 
 function numUp(id,target){
@@ -2190,13 +2194,13 @@ function renderDiagnosis(s){
   s._issues=issues
   set('diagCount', e => { e.textContent=String(issues.length); e.style.display=issues.length?'':'none' })
   set('btnDiagAll', b => b.style.display=issues.some(it=>it.proto!=null)?'':'none')
-  if(!issues.length){setHTML('diagList','<div class="empty" style="padding:16px">'+ICONS.ok+'<div>一切正常，无待处理项</div></div>');return}
+  if(!issues.length){setHTML('diagList','<div class="empty">'+ICONS.ok+'<div>一切正常，无待处理项</div></div>');return}
   const diagHtml=issues.map(it=>`<div class="diag-item">
       <span class="pill ${it.type==='manual'?'n':'y'}">${esc(it.label)}</span>
       <span class="qq qq-copy" data-qq="${it.uin}" title="点击复制 QQ">${it.uin}</span>
       ${it.type==='manual'
-        ?'<span class="faint" style="margin-left:auto">需在面板手动处理</span>'
-        :`<button class="mini-btn diagAct" style="margin-left:auto" data-self="${it.uin}" data-proto="${it.proto}">${ICONS.upload}立即推送</button>`}
+        ?'<span class="faint">需在面板手动处理</span>'
+        :`<button class="mini-btn diagAct" data-self="${it.uin}" data-proto="${it.proto}">${ICONS.upload}立即推送</button>`}
     </div>`).join('')
   if(!setHTML('diagList', diagHtml)) return
   el.querySelectorAll('.qq-copy').forEach(q=>q.onclick=async()=>{try{await navigator.clipboard.writeText(q.dataset.qq);toast('已复制 QQ')}catch{}})
