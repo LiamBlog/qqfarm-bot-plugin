@@ -659,6 +659,68 @@
     -webkit-box-shadow: 0 0 0 1000px var(--bg2) inset;
     caret-color: var(--text);
   }
+
+  /* ================= 3.7.8 布局与交互优化 ================= */
+  /* 统计卡可点击筛选 */
+  .stat[data-stat] { cursor:pointer; }
+  .stat[data-stat] .num { transition:color .15s; }
+  .stat[data-stat]:hover .num, .stat[data-stat]:focus-visible .num { color:var(--accent); }
+  .stat[data-stat]:focus-visible { outline:2px solid var(--ring); outline-offset:2px; }
+
+  /* 可排序表头 */
+  th.sortable { cursor:pointer; user-select:none; white-space:nowrap; }
+  th.sortable:hover { color:var(--text); }
+  th.sortable .sort-ind { display:inline-block; margin-left:4px; opacity:.32; font-size:10px; transition:opacity .15s; }
+  th.sortable:hover .sort-ind { opacity:.7; }
+  th.sortable.on { color:var(--accent); }
+  th.sortable.on .sort-ind { opacity:1; }
+
+  /* 桌面端表格滚动区 + 表头冻结 */
+  @media (min-width:821px){
+    .table-wrap { max-height:min(72vh,760px); overflow:auto; }
+    .table-wrap thead th { position:sticky; top:0; z-index:3; background:var(--card); box-shadow:inset 0 -1px 0 var(--line); }
+  }
+
+  /* 面板配置改为居中模态 */
+  .modal-mask { position:fixed; inset:0; background:rgba(0,0,0,.44); -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px); opacity:0; visibility:hidden; transition:opacity .18s,visibility .18s; z-index:60; }
+  .modal-mask.show { opacity:1; visibility:visible; }
+  .panel-form { position:fixed; left:50%; top:50%; transform:translate(-50%,-46%) scale(.98); width:min(560px,calc(100vw - 32px)); max-height:calc(100vh - 40px); overflow:auto; margin:0; border:1px solid var(--line); border-radius:16px; background:var(--card-grad,var(--card)); box-shadow:var(--shadow); padding:18px; display:flex; flex-wrap:wrap; gap:12px; z-index:61; opacity:0; visibility:hidden; transition:opacity .18s,transform .18s,visibility .18s; }
+  .panel-form.show { opacity:1; visibility:visible; transform:translate(-50%,-50%) scale(1); }
+  .panel-form .pf-head { width:100%; display:flex; align-items:center; justify-content:space-between; }
+  .panel-form .pf-head h3 { font-size:15px; font-weight:700; }
+  .panel-form .row { flex:1 1 100%; display:grid; grid-template-columns:92px 1fr; gap:10px; align-items:center; }
+  .panel-form .row.hide { display:none; }
+  .panel-form select { background:var(--bg2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:8px 11px;width:100%;font-size:13px;outline:none;cursor:pointer; }
+  .panel-form select:focus { border-color:var(--violet); }
+  .panel-form .pf-hint { width:100%; color:var(--faint); font-size:11.5px; line-height:1.55; }
+  .panel-form .btns { width:100%; display:flex;justify-content:flex-end;gap:8px; margin-top:2px; }
+
+  /* 面板延迟迷你趋势 */
+  .panel-spark { display:inline-flex; align-items:center; gap:5px; }
+  .panel-spark svg { width:64px; height:18px; overflow:visible; }
+  .panel-spark .sp-line { fill:none; stroke:var(--ok); stroke-width:1.6; stroke-linejoin:round; stroke-linecap:round; }
+  .panel-spark .sp-area { fill:var(--ok-soft); }
+  .panel-spark .sp-ms { font-size:10.5px; color:var(--faint); font-variant-numeric:tabular-nums; }
+
+  /* 动态条目可点击跳账号 */
+  .tl-item.clickable { cursor:pointer; border-radius:10px; }
+  .tl-item.clickable:hover { background:var(--row-hover); }
+  .tl-item.clickable .tl-msg::after { content:' ↗'; color:var(--faint); font-size:11px; }
+
+  /* 设置吸底保存条 */
+  .save-row { position:sticky; bottom:0; z-index:5; padding:12px 0 2px; margin-top:6px; background:linear-gradient(180deg,transparent,var(--card) 38%); border-top:1px solid var(--line); }
+  .save-row .dirty { color:var(--warn); font-size:12px; margin-right:auto; display:none; align-items:center; gap:6px; }
+  .save-row.dirty-on .dirty { display:inline-flex; }
+
+  /* 手机端：底部标签栏 + 状态聚合 */
+  @media (max-width:640px){
+    .tabs { position:fixed; left:0; right:0; bottom:0; top:auto; margin:0; border-radius:0; border-width:1px 0 0; padding:6px 6px calc(6px + env(safe-area-inset-bottom)); z-index:45; background:color-mix(in srgb,var(--card) 96%,transparent); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); box-shadow:0 -8px 24px rgba(0,0,0,.16); }
+    .tab { min-width:0; flex:1; flex-direction:column; gap:3px; padding:7px 4px; font-size:11.5px; border-radius:9px; }
+    .tab .cnt { font-size:10px; }
+    body { padding-bottom:74px; }
+    .wrap { padding-bottom:92px; }
+    #ipcState { display:none; }
+  }
 </style>
 </head>
 <body>
@@ -707,11 +769,11 @@
     <button class="mini-btn" id="btnGoPanels">去添加面板 →</button>
   </div>
   <section class="stats">
-    <div class="stat"><div class="ico rose">
+    <div class="stat" data-stat="all" role="button" tabindex="0" title="查看全部账号"><div class="ico rose">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
       <div class="body"><div class="num" id="stAccounts"></div><div class="lbl">账号总数（QQ 去重）</div></div>
     </div>
-    <div class="stat"><div class="ico green">
+    <div class="stat" data-stat="online" role="button" tabindex="0" title="筛选在线账号"><div class="ico green">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92V21a1 1 0 0 1-1.09 1 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 3.2 3.1 1 1 0 0 1 4.2 2h4.09a1 1 0 0 1 1 .75c.12.72.37 1.42.72 2.06a1 1 0 0 1-.24 1.27l-1.6 1.6a16 16 0 0 0 6 6l1.6-1.6a1 1 0 0 1 1.27-.24c.64.35 1.34.6 2.06.72a1 1 0 0 1 .75 1z"/></svg></div>
       <div class="body"><div class="num" id="stOnline"></div><div class="lbl">在线账号</div></div>
       <div class="donut" title="在线占比">
@@ -719,11 +781,11 @@
         <div class="pct" id="donutPct">–</div>
       </div>
     </div>
-    <div class="stat"><div class="ico violet">
+    <div class="stat" data-stat="pending" role="button" tabindex="0" title="筛选待处理账号"><div class="ico violet">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="3"/><path d="m10 9 4 3-4 3z"/></svg></div>
       <div class="body"><div class="num" id="stPending"></div><div class="lbl">待处理账号</div></div>
     </div>
-    <div class="stat"><div class="ico amber">
+    <div class="stat" data-stat="activity" role="button" tabindex="0" title="查看推送动态"><div class="ico amber">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
       <div class="body"><div class="num" id="stLastPush"></div><div class="lbl">最近推送</div><div class="stat-note">最近成功推送（跨面板）</div></div>
     </div>
@@ -744,12 +806,17 @@
         <div class="acc-filter">
           <button class="chip active" data-filter="all">全部</button>
           <button class="chip" data-filter="online">仅在线</button>
+          <button class="chip" data-filter="pending">待处理</button>
         </div>
         <label class="sr-only" for="accSort">账号排序</label>
         <select class="sort-select" id="accSort" title="账号排序">
           <option value="online">在线优先</option>
+          <option value="name">昵称</option>
           <option value="level">等级最高</option>
           <option value="code">Code 最早</option>
+          <option value="status">同步状态</option>
+          <option value="social">好友数</option>
+          <option value="proto">协议实例</option>
         </select>
         </div>
         <div class="bulk-bar" id="bulkBar">
@@ -761,7 +828,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th scope="col" class="c-check"><label class="sr-only" for="checkAll">全选可推送账号</label><input type="checkbox" id="checkAll" title="全选可推送账号"></th><th scope="col">账号</th><th scope="col" class="c-proto">协议实例</th><th scope="col">状态</th><th scope="col" class="c-level">等级</th><th scope="col" class="c-social">好友/群</th><th scope="col">同步状态 · 当前目标</th><th scope="col">操作</th></tr></thead>
+          <thead><tr><th scope="col" class="c-check"><label class="sr-only" for="checkAll">全选可推送账号</label><input type="checkbox" id="checkAll" title="全选可推送账号"></th><th scope="col" class="sortable" data-sort="name" title="点击按昵称排序">账号<span class="sort-ind">↕</span></th><th scope="col" class="c-proto sortable" data-sort="proto" title="点击按协议实例排序">协议实例<span class="sort-ind">↕</span></th><th scope="col" class="sortable" data-sort="online" title="点击按在线状态排序">状态<span class="sort-ind">↕</span></th><th scope="col" class="c-level sortable" data-sort="level" title="点击按等级排序">等级<span class="sort-ind">↕</span></th><th scope="col" class="c-social sortable" data-sort="social" title="点击按好友数排序">好友/群<span class="sort-ind">↕</span></th><th scope="col" class="sortable" data-sort="code" title="点击按同步状态排序">同步状态 · 当前目标<span class="sort-ind">↕</span></th><th scope="col">操作</th></tr></thead>
           <tbody id="accounts"></tbody>
         </table>
       </div>
@@ -782,26 +849,6 @@
         </div>
       </div>
       <div class="panel-grid" id="panelList"></div>
-      <div class="panel-form" id="panelForm">
-        <div class="row"><label for="pf_label">名称</label><input type="text" id="pf_label" placeholder="FARM2"></div>
-        <div class="row"><label for="pf_baseUrl">地址</label><input type="text" id="pf_baseUrl" placeholder="http://host:3007"></div>
-        <div class="row"><label for="pf_authMode">认证方式</label>
-          <select id="pf_authMode">
-            <option value="auto">自动识别</option>
-            <option value="admin">404 密码登录</option>
-            <option value="token">404 我的 Token</option>
-            <option value="code">旧版访问码</option>
-          </select>
-        </div>
-        <div class="row" id="row_accessCode"><label for="pf_accessCode">访问 Code</label><input type="password" id="pf_accessCode" autocomplete="new-password" placeholder="旧版 qq-farm-bot 的访问 Code（编辑可留空保持不变）"></div>
-        <div class="row" id="row_username"><label for="pf_username">404 用户名</label><input type="text" id="pf_username" autocomplete="username" spellcheck="false" placeholder="qq-farm-bot-404 管理员用户名；旧版面板留空"></div>
-        <div class="row" id="row_password"><label for="pf_password">404 密码</label><input type="password" id="pf_password" autocomplete="new-password" placeholder="仅 404 版面板需要；编辑可留空保持不变"></div>
-        <div class="row" id="row_token"><label for="pf_token">我的 Token</label><input type="password" id="pf_token" autocomplete="off" spellcheck="false" placeholder="粘贴面板左下角「我的 Token」；免密码直连"></div>
-        <div class="btns">
-          <button class="mini-btn" id="pfCancel">取消</button>
-          <button class="btn primary" id="pfSave" style="padding:6px 14px">保存</button>
-        </div>
-      </div>
       <div class="faint" style="margin-top:12px">★ 为当前推送目标（上线 / 定时刷新 / 推送全部均发往此面板）<br>
         旧版 qq-farm-bot：填写访问 Code；qq-farm-bot-404：填管理员用户名密码，或直接粘贴面板左下角「我的 Token」。Token 随面板重启/退出登录失效，失效后重新粘贴即可。</div>
     </div>
@@ -868,7 +915,7 @@
           <label for="f_staleHours">Code 保鲜</label>
           <div class="field"><input type="number" id="f_staleHours" min="0" max="168"><small>在线账号 Code 超过 N 小时自动重推一次（0 关闭）；仅重推已推送过的账号，不会新增</small></div>
         </fieldset>
-        <div class="save-row"><button class="btn primary" id="btnSave">
+        <div class="save-row" id="saveRow"><span class="dirty">● 有未保存的更改</span><button class="btn primary" id="btnSave">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>保存设置</button></div>
       </form>
       <div class="faint" id="nextRun" style="margin-top:14px"></div>
@@ -891,6 +938,30 @@
   <footer>农场桥接助手 · qqfarm-bot</footer>
 </div>
 <div id="toast" role="status" aria-live="polite"><span id="toastIcon"></span><span id="toastMsg"></span></div>
+
+<div class="modal-mask" id="panelFormMask"></div>
+<form class="panel-form" id="panelForm" onsubmit="return false" role="dialog" aria-modal="true" aria-labelledby="pfTitle">
+  <div class="pf-head"><h3 id="pfTitle">面板配置</h3><button class="drawer-close" id="pfClose" type="button" title="关闭">✕</button></div>
+  <div class="row"><label for="pf_label">名称</label><input type="text" id="pf_label" placeholder="FARM2"></div>
+  <div class="row"><label for="pf_baseUrl">地址</label><input type="text" id="pf_baseUrl" placeholder="http://host:3007"></div>
+  <div class="row"><label for="pf_authMode">认证方式</label>
+    <select id="pf_authMode">
+      <option value="auto">自动识别</option>
+      <option value="admin">404 密码登录</option>
+      <option value="token">404 我的 Token</option>
+      <option value="code">旧版访问码</option>
+    </select>
+  </div>
+  <div class="row" id="row_accessCode"><label for="pf_accessCode">访问 Code</label><input type="password" id="pf_accessCode" autocomplete="new-password" placeholder="旧版 qq-farm-bot 的访问 Code（编辑可留空保持不变）"></div>
+  <div class="row" id="row_username"><label for="pf_username">404 用户名</label><input type="text" id="pf_username" autocomplete="username" spellcheck="false" placeholder="qq-farm-bot-404 管理员用户名；旧版面板留空"></div>
+  <div class="row" id="row_password"><label for="pf_password">404 密码</label><input type="password" id="pf_password" autocomplete="new-password" placeholder="仅 404 版面板需要；编辑可留空保持不变"></div>
+  <div class="row" id="row_token"><label for="pf_token">我的 Token</label><input type="password" id="pf_token" autocomplete="off" spellcheck="false" placeholder="粘贴面板左下角「我的 Token」；免密码直连"></div>
+  <div class="pf-hint">旧版 qq-farm-bot 填访问 Code；qq-farm-bot-404 填用户名密码，或粘贴面板左下角「我的 Token」。Token 随面板重启/退出登录失效，失效后重新粘贴即可。</div>
+  <div class="btns">
+    <button class="mini-btn" id="pfCancel" type="button">取消</button>
+    <button class="btn primary" id="pfSave" type="button" style="padding:6px 14px">保存</button>
+  </div>
+</form>
 
 <div class="drawer-mask" id="drawerMask"></div>
 <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dwNick" aria-hidden="true">
@@ -943,6 +1014,7 @@ let SECONDS = 15
 let accFilter = 'all' // 账号筛选：all / online
 let historyLimit = 60 // 动态流条数（加载更多时 +60，最多 200）
 const selected = new Set() // 批量推送选中项：self_id:protocol_id
+let lastCheckIdx = -1 // Shift 区间选择锚点
 let accSort = localStorage.getItem('mengka-acc-sort') || 'online' // 账号排序：online / level / code
 let histFilter = 'all' // 动态流筛选：all / push / account / panel
 
@@ -1028,10 +1100,46 @@ function updateBulk(){
     cb.indeterminate = !cb.checked && selected.size>0
   })
 }
+let accSortDir = localStorage.getItem('mengka-acc-sort-dir') || 'desc'
+const SORT_DEFAULT_DIR = { name:'asc', code:'asc', online:'desc', level:'desc', status:'desc', social:'desc', proto:'desc' }
+function syncSortHeaders(){
+  document.querySelectorAll('th.sortable').forEach(th=>{
+    const on = th.dataset.sort === accSort
+    th.classList.toggle('on', on)
+    const ind = th.querySelector('.sort-ind')
+    if (ind) ind.textContent = on ? (accSortDir === 'asc' ? '↑' : '↓') : '↕'
+  })
+  const sel = $('accSort'); if (sel && sel.value !== accSort) sel.value = accSort
+}
+document.querySelectorAll('th.sortable').forEach(th => th.onclick = () => {
+  const k = th.dataset.sort
+  if (accSort === k) accSortDir = accSortDir === 'asc' ? 'desc' : 'asc'
+  else { accSort = k; accSortDir = SORT_DEFAULT_DIR[k] || 'desc' }
+  localStorage.setItem('mengka-acc-sort', accSort)
+  localStorage.setItem('mengka-acc-sort-dir', accSortDir)
+  syncSortHeaders()
+  if (STATE) render(STATE)
+})
 set('accSort', sel=>sel.onchange=()=>{
   accSort=sel.value
+  accSortDir=SORT_DEFAULT_DIR[accSort]||'desc'
   localStorage.setItem('mengka-acc-sort', accSort)
+  localStorage.setItem('mengka-acc-sort-dir', accSortDir)
+  syncSortHeaders()
   if(STATE) render(STATE)
+})
+/* 统计卡 → 快捷筛选 */
+document.querySelectorAll('.stat[data-stat]').forEach(el=>{
+  const act=()=>{
+    const f=el.dataset.stat
+    if(f==='activity'){ showTab('activity'); return }
+    showTab('accounts')
+    accFilter=f
+    document.querySelectorAll('.chip[data-filter]').forEach(x=>x.classList.toggle('active',x.dataset.filter===f))
+    if(STATE) render(STATE)
+  }
+  el.onclick=act
+  el.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); act() } }
 })
 set('btnLogs', b=>b.onclick=async ()=>{
   try{
@@ -1107,6 +1215,8 @@ document.addEventListener('keydown', e=>{
   if($('drawer')?.classList.contains('show')) return
   if(e.key==='/'){ e.preventDefault(); showTab('accounts'); const s=$('search'); if(s){ s.focus(); s.select() } }
   else if(e.key==='r'&&!e.metaKey&&!e.ctrlKey&&!e.altKey){ e.preventDefault(); load() }
+  else if(e.key==='?'){ e.preventDefault(); toast('快捷键：/ 搜索 · r 刷新 · 1-4 切换标签 · ? 帮助') }
+  else if(e.key>='1'&&e.key<='4'){ e.preventDefault(); showTab(['accounts','panels','activity','settings'][Number(e.key)-1]) }
 })
 set('dwClose', b => b.onclick = closeDrawer)
 set('drawerMask', m => m.onclick = closeDrawer)
@@ -1421,23 +1531,34 @@ function render(s){
       !kw||String(g.self_id).includes(kw)||g.nickname.toLowerCase().includes(kw)||g.remark.toLowerCase().includes(kw)
       ||g.instances.some(a=>(a.platform||'').toLowerCase().includes(kw)))
     const maxLevel=g=>Math.max(...g.instances.map(a=>Number(a.level)||0))
-    if(accSort==='level'){
-      groupList.sort((x,y)=>maxLevel(y)-maxLevel(x)||x.self_id-y.self_id)
-    }else if(accSort==='code'){
-      const age=g=>g.codeAge==null?Number.MAX_SAFE_INTEGER:Number(g.codeAge)
-      groupList.sort((x,y)=>age(y)-age(x)||x.self_id-y.self_id)
-    }else{
-      groupList.sort((x,y)=>{
-        const xo=x.instances.some(a=>a.online),yo=y.instances.some(a=>a.online)
-        return (yo-xo)||(x.self_id-y.self_id)
-      })
+    const maxNum=(g,f)=>Math.max(...g.instances.map(a=>Number(a[f])||0))
+    const cmpVal={
+      online:g=>g.instances.some(a=>a.online)?1:0,
+      name:g=>(g.nickname||'').toLowerCase(),
+      level:g=>maxLevel(g),
+      code:g=>g.codeAge==null?Number.MAX_SAFE_INTEGER:Number(g.codeAge),
+      status:g=>{const st=syncStatus(g,s);return st.label==='已同步'?0:st.cls==='r'?1:st.pending?2:3},
+      social:g=>maxNum(g,'friend_count'),
+      proto:g=>maxNum(g,'protocol_id'),
     }
-    set('accSort', e=>{ e.value=accSort })
+    const sortFn=cmpVal[accSort]||cmpVal.online
+    const sortDir=accSortDir==='asc'?1:-1
+    groupList.sort((x,y)=>{
+      const vx=sortFn(x),vy=sortFn(y)
+      let r=typeof vx==='number'?vx-vy:String(vx).localeCompare(String(vy),'zh-CN')
+      if(r===0) r=x.self_id-y.self_id
+      return r*sortDir
+    })
     if(accFilter==='online'){
       groupList=groupList.map(g=>({...g,instances:g.instances.filter(a=>a.online)})).filter(g=>g.instances.length)
+    }else if(accFilter==='pending'){
+      groupList=groupList.filter(g=>syncStatus(g,s).pending)
     }
+    syncSortHeaders()
     const emptyMsg=accFilter==='online'
       ? (kw?`没有匹配「${kw}」的在线账号`:'当前没有在线账号')
+      : accFilter==='pending'
+      ? (kw?`没有匹配「${kw}」的待处理账号`:'当前没有待处理账号')
       : `没有匹配「${kw}」的账号`
     const accHtml=(()=>{
       if(!s.accounts.length) return `<tr><td colspan="8"><div class="empty">${ICONS.off}<div>暂无 Android 账号<br><span class="faint">请在萌卡框架登录手机 / 平板协议账号</span></div></div></td></tr>`
@@ -1482,7 +1603,21 @@ function render(s){
     })()
     if(setHTML('accounts', accHtml)){
       const tb=$('accounts')
-      tb.querySelectorAll('.rowCheck').forEach(cb=>cb.onchange=()=>{ cb.checked?selected.add(cb.dataset.key):selected.delete(cb.dataset.key); updateBulk() })
+      const boxes=[...tb.querySelectorAll('.rowCheck')]
+      boxes.forEach((cb,idx)=>{
+        cb.onchange=()=>{ cb.checked?selected.add(cb.dataset.key):selected.delete(cb.dataset.key); lastCheckIdx=idx; updateBulk() }
+        cb.onclick=ev=>{
+          if(!ev.shiftKey||lastCheckIdx<0||lastCheckIdx===idx) return
+          const a=Math.min(lastCheckIdx,idx),b=Math.max(lastCheckIdx,idx),val=cb.checked
+          for(let k=a;k<=b;k++){
+            const c=boxes[k]; if(!c||c.disabled) continue
+            c.checked=val
+            val?selected.add(c.dataset.key):selected.delete(c.dataset.key)
+          }
+          lastCheckIdx=idx
+          updateBulk()
+        }
+      })
       tb.querySelectorAll('.btnPush').forEach(b=>b.onclick=()=>pushOne(b))
       tb.querySelectorAll('.who').forEach(w=>w.onclick=e=>{ if(e.target.closest('.remark')) return; openAccount(w.dataset.self) })
       tb.querySelectorAll('.remark').forEach(initRemark)
@@ -1508,6 +1643,16 @@ function render(s){
       if(!list.length) return '<div class="empty">'+ICONS.off+`<div>${histFilter==='all'?'暂无动态，等待推送或上下线事件':'该分类暂无动态'}</div></div>`
       const TYPE_ICON={push:ICONS.upload,online:ICONS.ok,offline:ICONS.err,panel:ICONS.link}
       const TYPE_CLS={push:'push',online:'online',offline:'offline',panel:'panel'}
+      const nowMs=Number(s.now)||Date.now()
+      const rel=t=>{
+        const d=Number(t)||0, diff=Math.max(0,nowMs-d)
+        if(diff<60000) return '刚刚'
+        if(diff<3600000) return Math.floor(diff/60000)+' 分钟前'
+        if(diff<86400000) return Math.floor(diff/3600000)+' 小时前'
+        const dt=new Date(d)
+        return `${dt.getMonth()+1}/${dt.getDate()} ${dt.toLocaleTimeString('zh-CN',{hour12:false})}`
+      }
+      const knownIds=allGroups.map(g=>String(g.self_id))
       const dayOf=t=>{
         const d=new Date(t||0), now=new Date(), y=new Date(now)
         y.setDate(now.getDate()-1)
@@ -1522,13 +1667,18 @@ function render(s){
         const day=dayOf(h.time)
         const sep=day!==lastDay?`<div class="tl-day">${day}</div>`:''
         lastDay=day
-        return `${sep}<div class="tl-item">
+        const hit=knownIds.find(id=>String(h.message||'').includes(id))
+        return `${sep}<div class="tl-item${hit?' clickable':''}"${hit?` data-self="${hit}"`:''} title="${d.toLocaleString('zh-CN',{hour12:false})}">
           <div class="tl-ico ${TYPE_CLS[h.type]||'push'}">${TYPE_ICON[h.type]||ICONS.upload}</div>
-          <div class="tl-body"><div class="tl-msg">${esc(h.message)}</div><div class="tl-time">${time}</div></div>
+          <div class="tl-body"><div class="tl-msg">${esc(h.message)}</div><div class="tl-time">${rel(h.time)}</div></div>
         </div>`
       }).join('')
     })()
-    setHTML('timeline', timelineHtml)
+    if(setHTML('timeline', timelineHtml)){
+      $('timeline').querySelectorAll('.tl-item.clickable').forEach(it=>{
+        it.onclick=()=>openAccount(it.dataset.self)
+      })
+    }
 
     /* 面板列表 */
     renderPanels(s)
@@ -1625,6 +1775,15 @@ set('btnDiagAll', b => b.onclick=async ()=>{
   load()
 })
 
+const panelMsHist={} // 面板延迟采样（每次轮询追加，最多 24 点）
+function sparklineSvg(vals){
+  if(!vals||vals.length<2) return ''
+  const w=64,h=18,pad=2,max=Math.max(...vals),min=Math.min(...vals),span=(max-min)||1
+  const pts=vals.map((v,i)=>[pad+(w-2*pad)*i/(vals.length-1), h-pad-(h-2*pad)*(v-min)/span])
+  const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ')
+  const area=`M${pts[0][0].toFixed(1)} ${h-pad} `+pts.map(p=>`L${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ')+` L${pts[pts.length-1][0].toFixed(1)} ${h-pad} Z`
+  return `<span class="panel-spark" title="最近 ${vals.length} 次延迟：${vals.join(' / ')} ms"><svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><path class="sp-area" d="${area}"/><path class="sp-line" d="${line}"/></svg><span class="sp-ms">${vals[vals.length-1]}ms</span></span>`
+}
 function renderPanels(s){
   const el=$('panelList'); if(!el) return
   const cfg=s.config||{}, panels=Array.isArray(s.panels)?s.panels:[]
@@ -1633,11 +1792,18 @@ function renderPanels(s){
   if(!panels.length && !meta.length){setHTML('panelList','<div class="empty">'+ICONS.off+'<div>还没有面板，点右上角「添加面板」</div></div>');return}
   // 以实时状态 panels 为准，禁用推送时回退到配置元数据
   const rows=panels.length?panels:meta.map((m,i)=>({...m,ok:false,error:'推送未启用',accounts:[]}))
+  rows.forEach(p=>{
+    if(!p.ok||!Number(p.ms)) return
+    const k=p.baseUrl||p.label||'panel'
+    const arr=panelMsHist[k]||(panelMsHist[k]=[])
+    arr.push(Number(p.ms)); if(arr.length>24) arr.shift()
+  })
   const html=rows.map((p,i)=>{
     const isActive=i===active
     const status=p.ok
-      ?`<span class="status-chip ok"><span class="dot"></span>正常 · ${p.ms}ms</span>`
+      ?`<span class="status-chip ok"><span class="dot"></span>正常</span>`
       :`<span class="status-chip err" title="${esc(p.error||'不可达')}"><span class="dot"></span>${esc((p.error||'不可达').slice(0,20))}</span>`
+    const spark=p.ok?sparklineSvg(panelMsHist[p.baseUrl||p.label||'panel']):''
     const accs=p.accounts||[], stopped=accs.filter(a=>a.running===false).length
     const accSummary=`<span class="pill ${stopped?'y':'n'}" title="面板内账号${stopped?`，其中 ${stopped} 个已停止`:''}">${accs.length} 账号${stopped?` · ${stopped} 停止`:''}</span>`
     const modeChip=p.mode==='token'
@@ -1660,6 +1826,7 @@ function renderPanels(s){
       </div>
       <div class="panel-meta">
         ${status}
+        ${spark}
         ${accSummary}
         ${p.warning?`<span class="pill y" title="${esc(p.warning)}">默认密码</span>`:''}
         ${p.authBlocked?`<span class="pill y" title="${esc(p.authError||'认证失败')}">认证失败 · 自动推送暂停</span>`:''}
@@ -1731,9 +1898,23 @@ async function panelAction(act, i){
     const mode=p.authMode||p.mode||'auto'
     set('pf_authMode', e => e.value=['auto','admin','token','code'].includes(mode)?mode:'auto')
     syncPanelAuth()
-    $('panelForm').classList.add('show')
+    openPanelForm()
   }
 }
+
+function openPanelForm(){
+  $('panelForm')?.classList.add('show')
+  $('panelFormMask')?.classList.add('show')
+  document.body.classList.add('no-scroll')
+}
+function closePanelForm(){
+  $('panelForm')?.classList.remove('show')
+  $('panelFormMask')?.classList.remove('show')
+  if(!$('drawer')?.classList.contains('show')) document.body.classList.remove('no-scroll')
+}
+set('pfClose', b=>b.onclick=closePanelForm)
+set('panelFormMask', m=>m.onclick=closePanelForm)
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closePanelForm() })
 
 function syncPanelAuth(){
   const mode=$('pf_authMode')?.value||'auto'
@@ -1753,9 +1934,9 @@ set('btnAddPanel', b => b.onclick=()=>{
   set('pf_token', e => e.placeholder='粘贴面板左下角「我的 Token」')
   set('pf_authMode', e => e.value='auto')
   syncPanelAuth()
-  set('panelForm', e => e.classList.add('show'))
+  openPanelForm()
 })
-set('pfCancel', b => b.onclick=()=>set('panelForm', e => e.classList.remove('show')))
+set('pfCancel', b => b.onclick=closePanelForm)
 set('pfSave', b => b.onclick=async ()=>{
   const label=($('pf_label')?.value||'').trim(), baseUrl=($('pf_baseUrl')?.value||'').trim()
   const accessCode=($('pf_accessCode')?.value||'').trim(), username=($('pf_username')?.value||'').trim()
@@ -1774,7 +1955,7 @@ set('pfSave', b => b.onclick=async ()=>{
   const item={label:label||`FARM${meta.length+1}`,baseUrl,authMode:picked,accessCode,username,password,token}
   if(editingPanel===-2) meta.push(item)
   else if(meta[editingPanel]) Object.assign(meta[editingPanel],{...item,label:label||meta[editingPanel].label})
-  try{ await savePanels(meta,STATE.config.activePanel||0); set('panelForm',e=>e.classList.remove('show')); toast(editingPanel===-2?'面板已添加':'面板已更新') }
+  try{ await savePanels(meta,STATE.config.activePanel||0); closePanelForm(); toast(editingPanel===-2?'面板已添加':'面板已更新') }
   catch(e){ toast('保存失败：'+e.message,false) }
 })
 
@@ -1857,8 +2038,18 @@ set('btnSave', b => b.onclick=async ()=>{
       repairMinutes:Number($('f_repairMinutes')?.value)||30,
     }})
     toast('设置已保存，立即生效')
+    set('saveRow', r => r.classList.remove('dirty-on'))
   }catch(e){toast('保存失败：'+e.message,false)}
   b.disabled=false
+})
+
+/* 设置变更提示：吸底保存条标记未保存 */
+set('saveRow', row=>{
+  const form=$('cfg')
+  if(!form) return
+  const mark=()=>row.classList.add('dirty-on')
+  form.addEventListener('input', mark)
+  form.addEventListener('change', mark)
 })
 
 /* ---------- 导出诊断包（脱敏：不含面板访问 Code） ---------- */
