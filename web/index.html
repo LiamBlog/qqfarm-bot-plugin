@@ -317,7 +317,7 @@
   .form label{color:var(--muted);font-size:12.5px;}
   .form .field{display:flex;flex-direction:column;gap:3px;}
   .form .field small{color:var(--faint);font-size:11px;}
-  input[type=text],input[type=number],input[type=password] { background:var(--bg2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:8px 11px;width:100%;font-size:13px;outline:none;transition:border-color .15s; }
+  input[type=text],input[type=number],input[type=password],input[type=url] { background:var(--bg2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:8px 11px;width:100%;font-size:13px;outline:none;transition:border-color .15s; }
   input:focus { border-color:var(--violet); }
   .switch{position:relative;width:42px;height:23px;display:inline-block;}
   /* 透明覆盖在轨道上：点击任意位置都能切换，且保留键盘可聚焦 */
@@ -655,7 +655,7 @@
   .pill.n { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line) 70%, transparent); }
   ::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text); }
   :focus-visible { outline-color: var(--ring); }
-  input[type=text]:focus, input[type=number]:focus, input[type=password]:focus,
+  input[type=text]:focus, input[type=number]:focus, input[type=password]:focus, input[type=url]:focus,
   .search:focus, .dw-remark-form input:focus, .sort-select:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px var(--accent-soft);
@@ -827,7 +827,7 @@
     box-shadow: 0 10px 22px -10px var(--accent-glow);
   }
   .mini-btn { border-radius: 9px; }
-  .search, .sort-select, input[type=text], input[type=number], input[type=password] { border-radius: 11px; }
+  .search, .sort-select, input[type=text], input[type=number], input[type=password], input[type=url] { border-radius: 11px; }
   .search { background: color-mix(in srgb, var(--bg2) 86%, transparent); }
   .acc-filter { background: color-mix(in srgb, var(--card2) 72%, transparent); }
   .hist-filters { border-radius: 999px; }
@@ -1028,7 +1028,6 @@
 
     .logo, .title-block { display: none; }
     .crumb { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-    .crumb .sep { color: var(--faint); }
     .crumb strong { color: var(--text); font-weight: 600; }
     .head-actions { margin-left: auto; flex-wrap: wrap; gap: 10px; }
     .avatar {
@@ -1108,6 +1107,91 @@
   @media (max-width: 1023px) {
     #cfg { grid-template-columns: 1fr; }
   }
+
+  /* ================= 3.7.22 视觉统一与布局打磨 ================= */
+  /* 全站统一动效曲线，交互节奏一致 */
+  .btn,.card,.panel-card,.acc-card,.stat,.tab,.chip,.mini-btn,.pill,.search,.sort-select,
+  input,select,textarea,.tl-item,.notice {
+    transition-timing-function: cubic-bezier(.22,.75,.3,1);
+  }
+
+  /* 渐变统计卡：低饱和色阶 + 统一顶部高光 + 细环装饰 */
+  .stat[data-stat='all']      { --g1:#f4657f; --g2:#f98d5b; }
+  .stat[data-stat='online']   { --g1:#6d5ae6; --g2:#a184f2; }
+  .stat[data-stat='pending']  { --g1:#2c6ee0; --g2:#58a8f0; }
+  .stat[data-stat='activity'] { --g1:#f2913f; --g2:#ef6a58; }
+  .stat[data-stat] {
+    background-image:
+      linear-gradient(180deg, rgba(255,255,255,.17), rgba(255,255,255,0) 46%),
+      linear-gradient(140deg, var(--g1) 0%, var(--g2) 100%);
+    box-shadow: 0 12px 26px -18px color-mix(in srgb, var(--g1) 72%, transparent);
+  }
+  .stat[data-stat]::before {
+    content:""; position:absolute; left:-26px; bottom:-30px; width:104px; height:104px;
+    border-radius:50%; border:1px solid rgba(255,255,255,.16); pointer-events:none;
+  }
+  .stat[data-stat]::after { background:rgba(255,255,255,.08); }
+  .stat[data-stat]:hover { box-shadow:0 22px 38px -18px color-mix(in srgb, var(--g1) 78%, transparent); }
+  .stat[data-stat] .ico { background:rgba(255,255,255,.18); }
+  .stat[data-stat] .num { font-weight:700; }
+  :root[data-theme='dark'] .stat[data-stat='all']      { --g1:#c84960; --g2:#cc6c3d; }
+  :root[data-theme='dark'] .stat[data-stat='online']   { --g1:#5847c4; --g2:#7d62d0; }
+  :root[data-theme='dark'] .stat[data-stat='pending']  { --g1:#2354b3; --g2:#3b7fc0; }
+  :root[data-theme='dark'] .stat[data-stat='activity'] { --g1:#c06f2a; --g2:#c7503f; }
+
+  /* 卡片体系：圆角、内边距、边框与阴影统一 */
+  .card { padding:18px 20px; border-radius:18px; }
+  .panel-card { padding:16px 18px; border-radius:18px; }
+  .acc-card { padding:14px 16px; border-radius:16px; }
+  .card, .panel-card, .acc-card, .settings-group {
+    border-color:color-mix(in srgb, var(--line) 88%, var(--accent) 12%);
+    box-shadow:var(--shadow), inset 0 1px 0 var(--card-highlight);
+  }
+
+  /* 表格层级：行分隔更轻、分组行强调、吸顶表头带投影 */
+  td { border-bottom-color:color-mix(in srgb, var(--line) 42%, transparent); }
+  tr.group-start td { border-top:1px solid color-mix(in srgb, var(--accent) 26%, var(--line)); }
+  tbody tr:hover { background:color-mix(in srgb, var(--accent) 4%, var(--row-hover)); }
+  @media (min-width:821px){
+    .table-wrap thead th { box-shadow:inset 0 -1px 0 var(--line), 0 6px 12px -9px rgba(0,0,0,.35); }
+  }
+
+  /* 空状态：图标层次与副文案 */
+  .empty { padding:32px 12px; }
+  .empty svg { opacity:.62; }
+  .empty .faint { font-size:11.5px; line-height:1.7; }
+
+  /* 顶栏：面包屑升级为页面标题 + 副标题，填满左侧留白 */
+  .crumb-sub { display:none; }
+  @media (min-width: 1024px) {
+    .crumb { gap:11px; flex:1 1 auto; }
+    .crumb strong { font-size:15.5px; font-weight:650; letter-spacing:-.2px; }
+    .crumb .crumb-sub {
+      display:inline; position:relative; padding-left:13px;
+      color:var(--faint); font-size:12px; font-weight:400;
+    }
+    .crumb .crumb-sub::before {
+      content:""; position:absolute; left:0; top:50%; width:3px; height:3px;
+      border-radius:50%; background:var(--line2); transform:translateY(-50%);
+    }
+  }
+
+  /* 侧栏底部：迷你状态块 */
+  .side-foot { display:none; }
+  @media (min-width: 1024px) {
+    /* 侧栏选中态：恢复左侧渐变指示条，强化当前分区 */
+    .tab.active::before {
+      display:block; content:""; position:absolute; left:0; top:50%; transform:translateY(-50%);
+      width:3px; height:20px; border-radius:0 3px 3px 0;
+      background:linear-gradient(180deg, var(--violet), var(--accent));
+    }
+    .side-foot { display:block; margin-top:auto; padding:14px 12px 2px; border-top:1px solid var(--line); }
+    .side-foot .sf-title { font-size:10px; font-weight:700; letter-spacing:.16em; color:var(--faint); margin-bottom:7px; }
+    .side-foot .sf-row { display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:4px 0; font-size:12px; color:var(--muted); }
+    .side-foot .sf-row b { color:var(--text); font-weight:650; font-size:13px; font-variant-numeric:tabular-nums; }
+    .side-foot .sf-row b.ok { color:var(--ok); }
+    .side-foot .sf-row b.err { color:var(--err); }
+  }
 </style>
 </head>
 <body>
@@ -1123,7 +1207,7 @@
       <h1>农场桥接助手 <span class="badge" id="ver">v–</span></h1>
       <div class="sub">萌卡账号农场 Code → qq-farm-bot 多面板自动推送与可视化管控</div>
     </div>
-    <div class="crumb" aria-label="当前位置"><span>首页</span><span class="sep">/</span><strong id="crumbNow">账号管理</strong></div>
+    <div class="crumb" aria-label="当前位置"><strong id="crumbNow">账号管理</strong><span class="crumb-sub" id="crumbSub"></span></div>
     <div class="head-actions">
       <div class="head-status">
       <span class="badge" id="ipcState"><span class="dot on"></span>IPC 已连接</span>
@@ -1169,6 +1253,12 @@
     <button class="tab" id="tab-settings" role="tab" aria-selected="false" aria-controls="panel-settings" tabindex="-1" data-tab="settings">
       <svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 3.6 15a1.7 1.7 0 0 0-1.55-1H2a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 3.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 8 4.6h.09A1.7 1.7 0 0 0 9 3.05V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.09a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>
       <span>设置</span></button>
+    <div class="side-foot">
+      <div class="sf-title">概览</div>
+      <div class="sf-row"><span>接入面板</span><b id="sfPanels">–</b></div>
+      <div class="sf-row"><span>在线账号</span><b id="sfOnline">–</b></div>
+      <div class="sf-row"><span>今日推送</span><b id="sfPush">–</b></div>
+    </div>
   </nav>
 
   <section class="tab-panel active" id="panel-accounts" role="tabpanel" aria-labelledby="tab-accounts" data-panel="accounts">
@@ -1470,7 +1560,14 @@ set('btnTheme', b => b.onclick = () => {
 const TAB_KEY = 'mengka-admin-tab'
 function showTab(name) {
   const TAB_TITLES = { accounts: '账号管理', panels: 'farm 面板', activity: '推送动态', settings: '设置' }
+  const TAB_SUBS = {
+    accounts: '萌卡账号总览、在线状态与批量推送',
+    panels: '多面板接入、账号映射与推送目标',
+    activity: '推送记录、上下线事件与失败告警',
+    settings: '推送参数、账号来源与实例信息',
+  }
   set('crumbNow', el => el.textContent = TAB_TITLES[name] || '账号管理')
+  set('crumbSub', el => el.textContent = TAB_SUBS[name] || '')
   document.querySelectorAll('.tab').forEach(t => {
     const on = t.dataset.tab === name
     t.classList.toggle('active', on)
@@ -2004,6 +2101,11 @@ function render(s){
     set('greetPush', e=>e.textContent=pushToday)
     set('greetActivity', e=>e.textContent=todayCount)
     set('greetPanels', e=>e.textContent=panels.length?`${okPanels}/${panels.length}`:'–')
+    // 侧栏底部概览（仅桌面端可见）
+    set('sfPanels', e=>{ e.textContent=panels.length?`${okPanels}/${panels.length}`:'–'
+      e.className = !panels.length ? '' : (okPanels<panels.length ? 'err' : 'ok') })
+    set('sfOnline', e=>e.textContent=online)
+    set('sfPush', e=>e.textContent=pushToday)
     set('accountCount', e=>e.textContent=allGroups.length+' 个账号 · '+s.accounts.length+' 个实例')
     renderDonut(online,allGroups.length)
 
