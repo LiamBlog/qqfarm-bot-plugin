@@ -4,3 +4,4 @@ dist/
 *.sha256
 *.zip
 .DS_Store
+/qqfarm-bot
