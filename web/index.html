@@ -227,7 +227,6 @@
   .tl-msg {font-size:12.5px; line-height:1.45; word-break:break-all}
   .tl-time {color:var(--faint); font-size:11px}
   .search {background:var(--bg2); border:1px solid var(--line); color:var(--text); border-radius:9px; padding:6px 11px; font-size:12.5px; width:190px; outline:none; transition:border-color .15s}
-  .search:focus {border-color:var(--violet)}
   .acc-filter {display:inline-flex; gap:5px; margin-left:auto; padding:3px; border:1px solid var(--line); border-radius:999px; background:var(--card2)}
   .account-controls .checkall {display:none; align-items:center; gap:5px; font-size:12px; color:var(--muted); cursor:pointer; white-space:nowrap}
   .account-controls .checkall input {width:14px; height:14px; accent-color:var(--accent); cursor:pointer}
@@ -268,14 +267,12 @@
   .panel-form .row.hide {display:none}
   .panel-form label {color:var(--muted); font-size:12px}
   .panel-form select {background:var(--bg2); color:var(--text); border:1px solid var(--line); border-radius:9px; padding:8px 11px; width:100%; font-size:13px; outline:none; cursor:pointer}
-  .panel-form select:focus {border-color:var(--violet)}
   .panel-form .btns {width:100%; display:flex; justify-content:flex-end; gap:8px; margin-top:2px}
   .form {display:grid; grid-template-columns:118px 1fr; gap:12px 14px; align-items:center}
   .form label {color:var(--muted); font-size:12.5px}
   .form .field {display:flex; flex-direction:column; gap:3px}
   .form .field small {color:var(--faint); font-size:11px}
   input[type=text],input[type=number],input[type=password],input[type=url] {background:var(--bg2); color:var(--text); border:1px solid var(--line); border-radius:9px; padding:8px 11px; width:100%; font-size:13px; outline:none; transition:border-color .15s}
-  input:focus {border-color:var(--violet)}
   .switch {position:relative; width:42px; height:23px; display:inline-block}
   .switch input {position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; z-index:2}
   .switch input:focus-visible+i {outline:2px solid var(--violet); outline-offset:2px}
@@ -358,8 +355,6 @@
 
   .dw-remark-form {display:flex; gap:6px; width:100%}
   .dw-remark-form input {flex:1; min-width:0; background:var(--bg2); border:1px solid var(--line2); color:var(--text); border-radius:8px; padding:5px 9px; font-size:12.5px; outline:none}
-  .dw-remark-form input:focus {border-color:var(--violet)}
-
 @media (max-width:960px) {
   .stats {grid-template-columns:repeat(2,1fr)}
 }
@@ -496,7 +491,6 @@
   .status-chip.ok, .pill.g {box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ok) 16%, transparent)}
   .status-chip.err, .pill.r {box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--err) 18%, transparent)}
   ::selection {background:color-mix(in srgb, var(--accent) 22%, transparent); color:var(--text)}
-  input[type=text]:focus, input[type=number]:focus, input[type=password]:focus, input[type=url]:focus, .search:focus, .dw-remark-form input:focus, .sort-select:focus {border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft)}
   input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus {-webkit-text-fill-color:var(--text); -webkit-box-shadow:0 0 0 1000px var(--bg2) inset; caret-color:var(--text)}
   .stat[data-stat] {cursor:pointer; color:#fff; border:none; min-height:112px; align-items:flex-start; position:relative; overflow:hidden; padding:18px 20px}
   .stat[data-stat] .num {transition:color .15s; font-size:27px; color:#fff}
@@ -583,7 +577,7 @@
   .btn:hover {transform:translateY(-1px)}
   .btn:active {transform:translateY(0)}
   .btn.primary:hover {box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 16px 28px -12px var(--accent-glow-strong)}
-  input:focus, select:focus, textarea:focus {border-color:color-mix(in srgb, var(--accent) 52%, var(--line)) !important; box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent)}
+  input:focus, select:focus, textarea:focus {border-color:color-mix(in srgb, var(--accent) 52%, var(--line)); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent)}
   .stat .num {font-variant-numeric:tabular-nums}
 
 @media (min-width: 1024px) {
