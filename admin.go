@@ -32,7 +32,10 @@ type Admin struct {
 }
 
 func newAdmin(cfg *Config, bridge *Bridge, dataDir string) *Admin {
-	page, _ := webFS.ReadFile("web/index.html")
+	page, err := webFS.ReadFile("web/index.html")
+	if err != nil {
+		panic("管理端 HTML 缺失（embed 资源未打进去）：" + err.Error())
+	}
 	a := &Admin{cfg: cfg, bridge: bridge, dataDir: dataDir, pageBytes: page}
 	a.token = readTokenFile()
 	a.origin = strings.TrimSpace(getenv("MENGKA_PLUGIN_ADMIN_ORIGIN", ""))
@@ -386,12 +389,16 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 				"activePanel": farm.ActivePanel, "panels": panels,
 			},
 		}
-		data, _ := json.MarshalIndent(payload, "", "  ")
+		data, err := json.MarshalIndent(payload, "", "  ")
+		if err != nil {
+			jsonOut(500, map[string]any{"error": "导出失败：" + err.Error()})
+			return
+		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Content-Disposition", "attachment; filename=qqfarm-bot-config.json")
 		w.Header().Set("Cache-Control", "no-store")
 		w.WriteHeader(200)
-		_, _ = w.Write(append(data, '\n'))
+		w.Write(append(data, '\n'))
 
 	case r.URL.Path == "/api/config/import" && r.Method == http.MethodPost:
 		body := readBody()

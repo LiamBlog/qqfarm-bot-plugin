@@ -88,6 +88,11 @@ func main() {
 	farm := cfg.Get()
 	if farm.Enabled && farm.PushOnLogin {
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logf("启动推送 panic：%v", r)
+				}
+			}()
 			results := bridge.PushAllOnline(bridge.activeIndex(bridge.Panels()))
 			if len(results) > 0 {
 				okCount := 0

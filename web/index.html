@@ -16,7 +16,7 @@
 <style>
 /* 3.7.24 样式层重构：由 3.7.23 的 724 条规则实例去重合并为 541 条唯一规则，
    级联敏感对已按分段策略保留相对顺序，渲染结果与旧版逐属性一致。 */
-:root {--accent:#c7355d; --accent-2:#a92849; --accent-3:#e66085; --violet:#6250d8; --ok:#0d7355; --warn:#8f5c10; --err:#c42f45; --blue:#1b67b0; --accent-glow:rgba(199,53,93,.26); --accent-glow-strong:rgba(199,53,93,.32); --ring:rgba(98,80,216,.55); --on-brand:#fff; --switch-on-knob:#fff; --card-highlight:rgba(255,255,255,.9); --r:14px; color-scheme:dark; accent-color:var(--accent); --tabbar:0px}
+:root {--accent:#c7355d; --accent-2:#a92849; --accent-3:#e66085; --violet:#6250d8; --ok:#0d7355; --warn:#8f5c10; --err:#c42f45; --blue:#1b67b0; --accent-glow:rgba(199,53,93,.26); --accent-glow-strong:rgba(199,53,93,.32); --ring:rgba(98,80,216,.55); --on-brand:#fff; --switch-on-knob:#fff; --card-highlight:rgba(255,255,255,.9); --brand-grad:linear-gradient(135deg,#4f7cff,#7c5cff); --brand-glow:rgba(79,124,255,.55); --r:14px; color-scheme:dark; accent-color:var(--accent); --tabbar:0px}
   :root[data-theme='dark'] {--bg:#0b0a10; --bg2:#111017; --card:#16141e; --card2:#1d1a27; --hover:#262231; --line:#2a2635; --line2:#3a3448; --text:#f2eff7; --muted:#a39baf; --faint:#8b8399; --accent:#ff6b8f; --accent-2:#e94f78; --accent-3:#ffa3b8; --violet:#9c8cff; --ok:#38d6a4; --warn:#f2b45c; --err:#ff6678; --blue:#5aa9ff; --accent-soft:rgba(255,107,143,.14); --violet-soft:rgba(156,140,255,.14); --ok-soft:rgba(56,214,164,.13); --warn-soft:rgba(242,180,92,.14); --err-soft:rgba(255,102,120,.13); --blue-soft:rgba(90,169,255,.13); --row-hover:rgba(255,255,255,.03); --head-glow1:rgba(255,107,143,.12); --head-glow2:rgba(156,140,255,.10); --accent-glow:rgba(255,107,143,.35); --accent-glow-strong:rgba(255,107,143,.42); --ring:rgba(156,140,255,.55); --on-brand:#1a1018; --switch-on-knob:#1a1018; --card-highlight:rgba(255,255,255,.05); --card-grad:linear-gradient(180deg,#1a1824 0,var(--card) 130px); --shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 22px 48px -26px rgba(0,0,0,.85); --avatar-shadow:0 2px 10px rgba(0,0,0,.4); color-scheme:dark}
   :root[data-theme='light'] {--bg:#f7f3f4; --bg2:#fff; --card:#fff; --card2:#f4eff1; --hover:#ede6ea; --line:#e9e1e5; --line2:#d9ced3; --text:#27222d; --muted:#625a69; --faint:#706876; --accent:#c7355d; --accent-2:#a92849; --accent-3:#e66085; --violet:#6250d8; --ok:#0d7355; --warn:#8f5c10; --err:#c42f45; --blue:#1b67b0; --accent-soft:rgba(199,53,93,.10); --violet-soft:rgba(98,80,216,.10); --ok-soft:rgba(13,115,85,.11); --warn-soft:rgba(143,92,16,.13); --err-soft:rgba(196,47,69,.10); --blue-soft:rgba(27,103,176,.10); --row-hover:rgba(39,34,45,.028); --head-glow1:rgba(199,53,93,.075); --head-glow2:rgba(98,80,216,.065); --accent-glow:rgba(199,53,93,.26); --accent-glow-strong:rgba(199,53,93,.32); --ring:rgba(98,80,216,.55); --on-brand:#fff; --switch-on-knob:#fff; --card-highlight:rgba(255,255,255,.9); --card-grad:linear-gradient(180deg,#fff 0,#fdfbfc 100%); --shadow:0 1px 2px rgba(52,32,44,.05), 0 18px 42px -24px rgba(52,32,44,.30); --avatar-shadow:0 2px 8px rgba(77,51,66,.18); color-scheme:light}
   * {box-sizing:border-box; margin:0; padding:0}
@@ -37,7 +37,7 @@
   .stat:nth-child(2) {animation-delay:.12s}
   .stat:nth-child(3) {animation-delay:.19s}
   .stat:nth-child(4) {animation-delay:.26s}
-  .logo {width:44px; height:44px; border-radius:13px; flex:none; background:linear-gradient(135deg,var(--accent),var(--violet)); display:grid; place-items:center; color:var(--on-brand); box-shadow:0 6px 18px var(--accent-glow); position:relative}
+  .logo {width:44px; height:44px; border-radius:13px; flex:none; background:var(--brand-grad); display:grid; place-items:center; color:var(--on-brand); box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 6px 18px var(--brand-glow); position:relative}
   .logo svg {width:24px; height:24px}
   .title-block {flex:1; min-width:220px}
   .title-block h1 {font-size:19px; font-weight:700; display:flex; align-items:center; gap:9px; flex-wrap:wrap; letter-spacing:.2px}
@@ -606,7 +606,7 @@
 
   .side-brand, .crumb, .avatar {display:none}
   .greet {display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin:16px 0 0; padding:18px 22px; border-radius:16px; border:1px solid var(--line); background:linear-gradient(120deg, color-mix(in srgb, var(--blue) 9%, var(--card)), color-mix(in srgb, var(--violet) 12%, var(--card))); animation:rise .4s ease both}
-  .greet .g-av {width:48px; height:48px; border-radius:50%; flex:none; display:grid; place-items:center; background:linear-gradient(135deg, #4f7cff, #7c5cff); color:#fff; font-weight:700; font-size:17px; box-shadow:0 8px 20px -8px rgba(79,124,255,.6)}
+  .greet .g-av {width:48px; height:48px; border-radius:50%; flex:none; display:grid; place-items:center; background:var(--brand-grad); color:#fff; font-weight:700; font-size:17px; box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 8px 20px -8px rgba(79,124,255,.6)}
   .greet .g-main {flex:1 1 240px; min-width:0}
   .greet .g-hi {font-size:17px; font-weight:650; letter-spacing:-.2px}
   .greet .g-sub {color:var(--muted); font-size:12.5px; margin-top:2px}
@@ -641,7 +641,7 @@
 
 @media (min-width: 1024px) {
   .side-brand {display:flex; align-items:center; gap:10px; padding:4px 6px 16px; margin-bottom:10px; border-bottom:1px solid var(--line)}
-  .side-brand .sb-logo {width:36px; height:36px; border-radius:10px; flex:none; display:grid; place-items:center; background:linear-gradient(135deg, #4f7cff, #7c5cff); color:#fff; box-shadow:0 6px 16px -8px rgba(79,124,255,.8)}
+  .side-brand .sb-logo {width:36px; height:36px; border-radius:10px; flex:none; display:grid; place-items:center; background:var(--brand-grad); color:#fff; box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 6px 16px -8px rgba(79,124,255,.8)}
   .side-brand .sb-logo svg {width:20px; height:20px}
   .side-brand .sb-name {font-size:14.5px; font-weight:700; letter-spacing:-.2px; line-height:1.3}
   .side-brand .sb-sub {font-size:10px; color:var(--faint); letter-spacing:.16em}

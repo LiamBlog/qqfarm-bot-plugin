@@ -813,6 +813,11 @@ func (b *Bridge) PushAllOnline(index int) []map[string]any {
 		wg.Add(1)
 		go func(i int, bot Bot) {
 			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					results[i] = map[string]any{"self_id": bot.SelfID, "protocol_id": bot.ProtocolID, "ok": false, "error": fmt.Sprintf("panic: %v", r)}
+				}
+			}()
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			res, err := b.PushAccount(bot, index)
@@ -994,13 +999,22 @@ func (b *Bridge) notify(title, detail, level string) {
 		return
 	}
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logf("告警通知 panic：%v", r)
+			}
+		}()
 		payload := map[string]any{
 			"title": title, "detail": detail, "level": level,
 			"text":   title + "\n" + detail,
 			"plugin": pluginID, "version": version, "instance": instanceID,
 			"time": time.Now().UnixMilli(),
 		}
-		data, _ := json.Marshal(payload)
+		data, err := json.Marshal(payload)
+		if err != nil {
+			logf("告警通知序列化失败：%v", err)
+			return
+		}
 		req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(data))
 		if err != nil {
 			logf("告警通知构造失败：%v", err)
@@ -1057,6 +1071,11 @@ func (b *Bridge) PanelStatus() []map[string]any {
 		wg.Add(1)
 		go func(i int, panel Panel) {
 			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					out[i] = map[string]any{"label": panel.Label, "ok": false, "error": fmt.Sprintf("panic: %v", r), "accounts": []any{}}
+				}
+			}()
 			item := map[string]any{
 				"label": panel.Label, "baseUrl": panel.BaseURL,
 				"hasCode": panel.AccessCode != "", "mode": panel.mode(),
