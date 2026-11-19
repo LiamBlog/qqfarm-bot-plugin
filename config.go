@@ -76,10 +76,11 @@ type FarmConfig struct {
 }
 
 type Config struct {
-	Farm    FarmConfig
-	Path    string
-	modTime time.Time
-	mu      sync.RWMutex
+	Farm        FarmConfig
+	Path        string
+	modTime     time.Time
+	mu          sync.RWMutex
+	operationMu sync.RWMutex
 }
 
 // 兼容旧版单面板字段（baseUrl / accessCode）
@@ -275,11 +276,27 @@ func (c *Config) Get() FarmConfig {
 	return farm
 }
 
-func (c *Config) Set(farm FarmConfig) {
+func (c *Config) Set(farm FarmConfig) error {
+	c.operationMu.Lock()
+	defer c.operationMu.Unlock()
+	if c.Path != "" {
+		data, err := json.MarshalIndent(map[string]any{"farm": farm}, "", "  ")
+		if err != nil {
+			return err
+		}
+		if err = writePrivateFile(c.Path, append(data, '\n')); err != nil {
+			return err
+		}
+	}
 	c.mu.Lock()
 	c.Farm = farm
+	if c.Path != "" {
+		if st, err := os.Stat(c.Path); err == nil {
+			c.modTime = st.ModTime()
+		}
+	}
 	c.mu.Unlock()
-	c.saveLocked()
+	return nil
 }
 
 func (c *Config) saveLocked() {
@@ -309,10 +326,28 @@ func (c *Config) saveLocked() {
 
 // writePrivateFile 写入仅当前用户可读写的文件，并收紧已有文件的权限。
 func writePrivateFile(path string, data []byte) error {
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	f, err := os.CreateTemp(filepath.Dir(path), ".private-*")
+	if err != nil {
 		return err
 	}
-	return os.Chmod(path, 0o600)
+	name := f.Name()
+	defer os.Remove(name)
+	if err = f.Chmod(0o600); err != nil {
+		f.Close()
+		return err
+	}
+	if _, err = f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err = f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(name, path)
 }
 
 func tightenPrivateFile(path string) {
@@ -348,6 +383,8 @@ func (c *Config) ReloadIfChanged() (bool, error) {
 		return false, err
 	}
 	farm := migrateFarm(top.Farm)
+	c.operationMu.Lock()
+	defer c.operationMu.Unlock()
 	c.mu.Lock()
 	c.Farm = farm
 	c.modTime = st.ModTime()

@@ -32,6 +32,7 @@ const summarize = (label, ok, detail = '') => {
   results.push(ok)
   console.error(`  ${ok ? 'PASS' : 'FAIL'}  ${label}${detail ? ` — ${detail}` : ''}`)
 }
+const waitFor=async(fn)=>{const end=Date.now()+4000;while(Date.now()<end){if(await fn())return true;await new Promise(r=>setTimeout(r,25))}return false}
 const delay = ms => new Promise(r => setTimeout(r, ms))
 
 /* ---------- 模拟 farm-bot 面板 ---------- */
@@ -190,10 +191,12 @@ summarize('自动巡检配置生效（下限 5 分钟）', repairCfg?.state?.con
 
 farmAccounts[0].running = false
 const repaired = await fetch(`${BASE}/api/repair_now`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(r => r.json()).catch(() => null)
+await waitFor(()=>farmAccounts[0]?.running===true)
 summarize('自动巡检：补推已停止的账号', repaired?.ok === true && repaired.results?.some(r => r.ok) && farmAccounts[0].running === true, `results=${repaired?.results?.length}`)
 
 farmAccounts = farmAccounts.filter(a => String(a.qq) !== '10001')
 const restored = await fetch(`${BASE}/api/repair_now`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(r => r.json()).catch(() => null)
+await waitFor(()=>farmAccounts.some(a=>String(a.qq)==='10001'))
 summarize('自动巡检：补回被删除的已推送账号', restored?.ok === true && farmAccounts.some(a => String(a.qq) === '10001'), `results=${restored?.results?.length}`)
 
 const hist = await fetch(`${BASE}/api/state?h=2`).then(r => r.json()).catch(() => null)
@@ -247,6 +250,27 @@ const recovered = await fetch(`${BASE}/api/state`).then(r => r.json()).catch(() 
 summarize('推送恢复后告警解除', okPush?.ok === true && recovered?.panels?.[0]?.alert === false, '')
 summarize('Webhook 收到恢复通知', hookHits.some(h => h.level === 'ok'), `hits=${hookHits.length}`)
 hookSrv.close()
+
+/* 3.8 task, routing, wizard and persistent history contracts. */
+const call=async(path,body)=>fetch(BASE+path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})}).then(r=>r.json())
+const assets=await fetch(BASE+'/enhancements.js').then(r=>r.text())
+summarize('3.8 管理页面资源已内嵌',assets.includes('queuePush')&&assets.includes('wizardOpen'),'')
+const policy={accounts:{'10001:0':{group:'日常',paused:true,targets:[]}},groups:{'日常':[farmURL]}}
+const routing=await call('/api/routing',{routing:policy})
+summarize('账号分组与协议 0 路由保存',routing.ok===true&&routing.routing.accounts['10001:0'].paused,'')
+const probe=await call('/api/setup/probe',{panel:{label:'TEST',baseUrl:farmURL,authMode:'code',accessCode:FARM_ACCESS_CODE}})
+summarize('接入向导只读检测账号',probe.ok===true&&probe.result.accounts>=1,'')
+const queued=await call('/api/tasks',{ids:['10001:0'],panel_urls:[farmURL]})
+const taskDone=await waitFor(async()=>{const v=await call('/api/tasks');return v.tasks?.some(t=>queued.ids?.includes(t.id)&&['succeeded','skipped'].includes(t.status))})
+summarize('暂停自动后仍可手动创建并完成任务',queued.ok===true&&taskDone,'')
+const filtered=await call('/api/history?account=10001&outcome=success')
+summarize('历史支持账号与结果筛选',filtered.total>=1&&filtered.items.every(h=>h.self_id==='10001'&&h.outcome==='success'),'')
+const safeHistory=await call('/api/history/export?account=10001')
+summarize('历史导出隐藏账号与面板地址',safeHistory.total>=1&&!JSON.stringify(safeHistory).includes(farmURL)&&safeHistory.items.every(h=>h.self_id!=='10001'&&h.message===''),'')
+const beforeDaily=(await call('/api/state')).stats.todayOk
+await fetch(BASE+'/api/history_clear',{method:'POST'})
+const afterClear=await call('/api/state')
+summarize('清空历史不重置今日累计',afterClear.stats.todayOk===beforeDaily&&afterClear.history.length===0,'')
 
 child.kill('SIGTERM')
 farm.close()

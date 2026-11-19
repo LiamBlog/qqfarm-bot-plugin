@@ -102,16 +102,8 @@ func main() {
 					logf("启动推送 panic：%v", r)
 				}
 			}()
-			results := bridge.PushAllOnline(bridge.activeIndex(bridge.Panels()))
-			if len(results) > 0 {
-				okCount := 0
-				for _, r := range results {
-					if r["ok"] == true {
-						okCount++
-					}
-				}
-				logf("farm-bot 启动推送完成：%d/%d", okCount, len(results))
-			}
+			bridge.PushAutomaticAll()
+			logf("farm-bot 启动自动任务已排队")
 		}()
 	}
 

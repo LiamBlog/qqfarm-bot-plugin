@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="${1:-3.7.27}"
+VERSION="${1:-3.8.0}"
 TARGET="${2:-all}"
 case "$TARGET" in
   all)             TARGETS=("linux/amd64" "linux/arm64" "windows/amd64") ;;
@@ -59,7 +59,7 @@ for SPEC in "${TARGETS[@]}"; do
   "version": "${VERSION}",
   "min_framework": "${MIN_FRAMEWORK}",
   "author": "mengka-bot",
-  "notes": "将登录账号的 QQ 农场 Code 自动推送到 qq-farm-bot / qq-farm-bot-404 面板（Go 单二进制版，${GOOSV}-${GOARCHV}）",
+  "notes": "将登录账号的 QQ 农场 Code 自动推送到 qq-farm-bot / qq-farm-bot-404 面板（任务中心、分组路由与可视化管理，${GOOSV}-${GOARCHV}）",
   "runtime": {
     "entry": "bin/${BIN}",
     "args": [],

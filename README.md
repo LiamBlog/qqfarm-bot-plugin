@@ -130,22 +130,22 @@
 ## 构建
 
 ```bash
-bash build.sh                 # 默认版本 3.7.27，一次生成三个平台的 TAR.GZ 插件包
-bash build.sh 3.7.27 all       # Linux amd64 + Linux arm64 + Windows amd64
-bash build.sh 3.7.27 linux     # 仅 Linux 双架构
-bash build.sh 3.7.27 windows   # 仅 Windows amd64（bin/qqfarm-bot.exe）
-# 单平台：bash build.sh 3.7.27 amd64
+bash build.sh                 # 默认版本 3.8.0，一次生成三个平台的 TAR.GZ 插件包
+bash build.sh 3.8.0 all       # Linux amd64 + Linux arm64 + Windows amd64
+bash build.sh 3.8.0 linux     # 仅 Linux 双架构
+bash build.sh 3.8.0 windows   # 仅 Windows amd64（bin/qqfarm-bot.exe）
+# 单平台：bash build.sh 3.8.0 amd64
 ```
 
 构建要求：Go 1.25+、Bash，以及 `tar`、`sha256sum` 等常用命令。`CGO_ENABLED=0`（脚本已设置）；Linux 产物为静态链接 ELF，不依赖容器 glibc；Windows 产物为 PE 可执行文件。
 
 默认在 `dist/` 生成以下三个可导入插件包，每个包另附同名 `.tar.gz.sha256` 校验文件：
 
-| 平台 | 插件包（以 3.7.27 为例） |
+| 平台 | 插件包（以 3.8.0 为例） |
 | --- | --- |
-| Linux amd64 | `qqfarm-bot-ipc-plugin-linux-amd64-3.7.27.tar.gz` |
-| Linux arm64 | `qqfarm-bot-ipc-plugin-linux-arm64-3.7.27.tar.gz` |
-| Windows amd64 | `qqfarm-bot-ipc-plugin-windows-amd64-3.7.27.tar.gz` |
+| Linux amd64 | `qqfarm-bot-ipc-plugin-linux-amd64-3.8.0.tar.gz` |
+| Linux arm64 | `qqfarm-bot-ipc-plugin-linux-arm64-3.8.0.tar.gz` |
+| Windows amd64 | `qqfarm-bot-ipc-plugin-windows-amd64-3.8.0.tar.gz` |
 
 三个包均将 `mengka-plugin.json` 放在压缩包根目录，入口位于 `bin/`；Linux 入口保留执行权限。Windows 包要求萌卡 NT 3.0.7 或更高版本。GitHub Release 同样直接提供这三个 `.tar.gz` 插件包及校验文件。
 
@@ -166,8 +166,36 @@ node test/ipc-host.mjs
 
 ## 安装
 
-框架管理端 → 插件 → 导入 `dist/qqfarm-bot-ipc-plugin-linux-amd64-3.7.27.tar.gz`。插件 ID 未变，导入后会替换原实例，数据目录 `/data` 保留。
+框架管理端 → 插件 → 导入 `dist/qqfarm-bot-ipc-plugin-linux-amd64-3.8.0.tar.gz`。插件 ID 未变，导入后会替换原实例，数据目录 `/data` 保留。
 
 ## 卸载/回滚
 
 需要回到 Node 版时，导入 2.6.x 的安装包即可（同样插件 ID，数据兼容）。
+
+## 3.8 操作说明
+
+- **账号管理**：在搜索区选择分组；在推送按钮旁明确选择“按账号 / 分组路由”、单一面板或全部面板。确认框会列出账号实例数、对应目标及可能重启会话的提示。
+- **账号分组与自动推送**：展开账号列表下方的设置，分配分组、多个面板及自动暂停开关，然后保存。多目标使用原生多选框（桌面按 Ctrl/⌘ 多选）。清除单独目标会继承分组，再继承默认面板。移除面板后不会把已排队任务改投到别处；请同步清理失效路由。
+- **面板管理**：使用接入向导新增面板；“更新凭据”打开对应面板，空白敏感字段保持原凭据。检测只读取账号，不执行账号推送。
+- **动态**：上部任务中心可筛选进行中、失败/中断或全部任务，下部历史按条件查询与脱敏导出。取消只影响尚未开始的执行；远端已经开始的操作不能撤销。
+- **设置**：未保存的设置和路由跨页面切换保留；定时刷新失败时保留上次数据并在全局提示。
+
+持久化文件位于框架提供的数据目录：原有 `config.json`、`activity.json`、`farm-tokens.json` 和 `remarks.json` 保留；新增 `operations.json` 保存路由、每日累计和任务快照。每日统计采用运行环境时区，状态接口返回当天日期与时区。升级前超过旧 120 条上限而丢弃的历史无法恢复；旧记录缺少结构化账号/面板字段时不会出现在相应精确筛选中。
+
+所有页面脚本和样式随 Go 二进制内嵌，不依赖外部 CDN。新接口继续经过既有的框架管理令牌与 Origin 校验。脱敏历史导出隐藏账号中间位、面板名/地址和自由文本详情；普通页面仍按管理员权限显示账号信息。
+
+### 本地回归
+
+```bash
+go vet ./...
+go test ./...
+# 有 C 编译器的环境运行：go test -race ./...
+bash build.sh 3.8.0 amd64
+node test/ipc-host.mjs
+# UI 测试依赖仅用于开发，Linux/CI 使用 Chromium
+npm install --no-save playwright@1.62.1
+npx playwright install --with-deps chromium
+QQFARM_BROWSER_CHANNEL=chromium node test/ui-regression.cjs
+```
+
+UI 测试使用本地合成数据，IPC 联调使用模拟框架与面板，不连接真实 QQ 账号。

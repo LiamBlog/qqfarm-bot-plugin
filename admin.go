@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-//go:embed web/index.html
+//go:embed web/*
 var webFS embed.FS
 
 type Admin struct {
@@ -24,6 +24,7 @@ type Admin struct {
 	origin  string
 
 	cacheMu   sync.Mutex
+	botsError string
 	botsAt    time.Time
 	bots      []Bot
 	panelAt   time.Time
@@ -77,9 +78,11 @@ func (a *Admin) botsCached() []Bot {
 	}
 	bots, err := a.bridge.botList()
 	if err != nil {
+		a.botsError = a.bridge.redact(err.Error())
 		logf("获取账号列表失败：%v", err)
 		return a.bots
 	}
+	a.botsError = ""
 	a.bots = bots
 	a.botsAt = time.Now()
 	return bots
@@ -92,14 +95,14 @@ func (a *Admin) panelsCached() []map[string]any {
 	a.cacheMu.Lock()
 	defer a.cacheMu.Unlock()
 	if time.Since(a.panelAt) < 5*time.Second && a.panels != nil {
-		return a.panels
+		return clonePanelStatus(a.panels)
 	}
 	a.panels = a.bridge.PanelStatus()
 	a.panelAt = time.Now()
 	for _, panel := range a.panels {
 		panel["checkedAt"] = a.panelAt.UnixMilli()
 	}
-	return a.panels
+	return clonePanelStatus(a.panels)
 }
 
 func (a *Admin) invalidatePanels() {
@@ -147,20 +150,6 @@ func (a *Admin) state(historyLimit int) map[string]any {
 		}
 	}
 
-	dayStart := time.Now()
-	dayStart = time.Date(dayStart.Year(), dayStart.Month(), dayStart.Day(), 0, 0, 0, 0, dayStart.Location())
-	okCount, failCount := 0, 0
-	for _, item := range a.bridge.History(200) {
-		if item.Type != "push" || item.OK == nil || item.Time < dayStart.UnixMilli() {
-			continue
-		}
-		if *item.OK {
-			okCount++
-		} else {
-			failCount++
-		}
-	}
-
 	panelMeta := []map[string]any{}
 	for _, p := range farm.Panels {
 		panelMeta = append(panelMeta, map[string]any{
@@ -199,7 +188,10 @@ func (a *Admin) state(historyLimit int) map[string]any {
 		"accounts": accounts,
 		"panels":   panels,
 		"retries":  a.bridge.RetryQueue(),
-		"stats":    map[string]any{"todayOk": okCount, "todayFail": failCount},
+		"stats":    a.bridge.ops.Stats(),
+		"routing":  a.bridge.ops.Routing(),
+		"tasks":    a.bridge.ops.Tasks(),
+		"sources":  a.sourceStatus(),
 		"history":  history,
 		"now":      now,
 	}
@@ -269,6 +261,9 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 		return
 	}
 
+	if a.serveOperations(w, r) {
+		return
+	}
 	switch {
 	case r.URL.Path == "/api/state" && r.Method == http.MethodGet:
 		limit, _ := strconv.Atoi(r.URL.Query().Get("h"))
@@ -480,7 +475,10 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 		}
 		next.Panels = migrated
 		next.ActivePanel = clampIndex(int(toFloat(farm["activePanel"])), len(migrated))
-		a.cfg.Set(next)
+		if err := a.cfg.Set(next); err != nil {
+			jsonOut(500, map[string]any{"error": "配置保存失败"})
+			return
+		}
 		a.bridge.clearTokens()
 		a.bridge.StartTimers()
 		a.invalidatePanels()
@@ -595,7 +593,10 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 		} else if _, ok := farm["activePanel"]; ok {
 			next.ActivePanel = clampIndex(int(toFloat(farm["activePanel"])), len(next.Panels))
 		}
-		a.cfg.Set(next)
+		if err := a.cfg.Set(next); err != nil {
+			jsonOut(500, map[string]any{"error": "配置保存失败"})
+			return
+		}
 		a.bridge.StartTimers()
 		a.invalidatePanels()
 		logf("配置已通过管理端更新")

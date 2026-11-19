@@ -23,7 +23,7 @@ jobs:
       - name: go vet
         run: go vet ./...
       - name: go test
-        run: go test ./...
+        run: go test -race ./...
       - name: 构建 amd64
         run: bash build.sh 0.0.0-dev amd64
       - uses: actions/setup-node@v4
@@ -31,6 +31,21 @@ jobs:
           node-version: "20"
       - name: 联调（模拟框架宿主 + 面板）
         run: node test/ipc-host.mjs
+      - name: 安装浏览器回归测试依赖
+        run: |
+          npm install --no-save playwright@1.62.1
+          npx playwright install --with-deps chromium
+      - name: UI 行为与响应式布局回归
+        env:
+          QQFARM_BROWSER_CHANNEL: chromium
+          QQFARM_UI_OUTPUT: test-results/ui
+        run: node test/ui-regression.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-regression-screenshots
+          path: test-results/ui
+          if-no-files-found: ignore
 
   package:
     name: 打包（${{ matrix.arch }}）

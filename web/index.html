@@ -733,6 +733,7 @@
   .side-foot .sf-row b.err {color:var(--err)}
 }
 </style>
+<link rel="stylesheet" href="enhancements.css">
 </head>
 <body>
 <div class="wrap">
@@ -786,7 +787,7 @@
       <span>账号管理</span> <span class="cnt" id="tabCntAccounts">–</span></button>
     <button class="tab" id="tab-panels" role="tab" aria-selected="false" aria-controls="panel-panels" tabindex="-1" data-tab="panels">
       <svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>
-      <span>farm 面板</span> <span class="cnt" id="tabCntPanels">–</span></button>
+      <span>面板管理</span> <span class="cnt" id="tabCntPanels">–</span></button>
     <button class="tab" id="tab-activity" role="tab" aria-selected="false" aria-controls="panel-activity" tabindex="-1" data-tab="activity">
       <svg class="tab-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
       <span>动态</span> <span class="cnt" id="tabCntActivity">–</span></button>
@@ -797,7 +798,7 @@
       <div class="sf-title">概览</div>
       <div class="sf-row"><span>接入面板</span><b id="sfPanels">–</b></div>
       <div class="sf-row"><span>在线账号</span><b id="sfOnline">–</b></div>
-      <div class="sf-row"><span>今日推送</span><b id="sfPush">–</b></div>
+      <div class="sf-row"><span>今日成功</span><b id="sfPush">–</b></div>
     </div>
   </nav>
 
@@ -809,20 +810,20 @@
       <div class="g-sub" id="greetSub">正在加载今日概览…</div>
     </div>
     <div class="g-nums">
-      <div><b id="greetPush">–</b><span>今日推送</span></div>
-      <div><b id="greetActivity">–</b><span>今日动态</span></div>
+      <div><b id="greetPush">–</b><span>今日成功</span></div>
+      <div><b id="greetActivity">–</b><span>今日失败</span></div>
       <div><b id="greetPanels">–</b><span>接入面板</span></div>
     </div>
   </section>
   <div class="notice" id="noPanelNotice" style="display:none">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
-    <span>还没有配置 farm 面板，账号 Code 暂时无处推送</span>
+    <span>还没有配置 面板管理，账号 Code 暂时无处推送</span>
     <button class="mini-btn" id="btnGoPanels">去添加面板 →</button>
   </div>
   <section class="stats">
     <div class="stat" data-stat="all" role="button" tabindex="0" title="查看全部账号"><div class="ico rose">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
-      <div class="body"><div class="num" id="stAccounts"></div><div class="lbl">账号总数（QQ 去重）</div></div>
+      <div class="body"><div class="num" id="stAccounts"></div><div class="lbl">账号总数</div></div>
     </div>
     <div class="stat" data-stat="online" role="button" tabindex="0" title="筛选在线账号"><div class="ico green">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92V21a1 1 0 0 1-1.09 1 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 3.2 3.1 1 1 0 0 1 4.2 2h4.09a1 1 0 0 1 1 .75c.12.72.37 1.42.72 2.06a1 1 0 0 1-.24 1.27l-1.6 1.6a16 16 0 0 0 6 6l1.6-1.6a1 1 0 0 1 1.27-.24c.64.35 1.34.6 2.06.72a1 1 0 0 1 .75 1z"/></svg></div>
@@ -874,13 +875,13 @@
         <div class="bulk-bar" id="bulkBar">
           <span id="bulkCount">已选 0</span>
           <button class="mini-btn" id="bulkPush" type="button">推送选中</button>
-          <button class="mini-btn" id="bulkBroadcast" type="button" title="把选中账号推送到全部已配置面板">广播面板</button>
+          <button class="mini-btn" id="bulkBroadcast" type="button" title="把选中账号推送到全部已配置面板">推送到全部面板</button>
           <button class="mini-btn" id="bulkClear" type="button">取消</button>
         </div>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th scope="col" class="c-check"><label class="sr-only" for="checkAll">全选可推送账号</label><input type="checkbox" id="checkAll" title="全选可推送账号"></th><th scope="col" class="sortable" data-sort="name" title="点击按昵称排序">账号<span class="sort-ind">↕</span></th><th scope="col" class="c-proto sortable" data-sort="proto" title="点击按协议实例排序">协议实例<span class="sort-ind">↕</span></th><th scope="col" class="sortable" data-sort="online" title="点击按在线状态排序">状态<span class="sort-ind">↕</span></th><th scope="col" class="c-level sortable" data-sort="level" title="点击按等级排序">等级<span class="sort-ind">↕</span></th><th scope="col" class="c-social sortable" data-sort="social" title="点击按好友数排序">好友/群<span class="sort-ind">↕</span></th><th scope="col" class="sortable" data-sort="code" title="点击按同步状态排序">同步状态 · 当前目标<span class="sort-ind">↕</span></th><th scope="col">操作</th></tr></thead>
+          <thead><tr><th scope="col" class="c-check"><label class="sr-only" for="checkAll">全选可推送账号</label><input type="checkbox" id="checkAll" title="全选可推送账号"></th><th scope="col" class="sortable" data-sort="name" title="点击按昵称排序">账号<span class="sort-ind">↕</span></th><th scope="col" class="c-proto sortable" data-sort="proto" title="点击按协议实例排序">协议实例<span class="sort-ind">↕</span></th><th scope="col" class="sortable" data-sort="online" title="点击按在线状态排序">状态<span class="sort-ind">↕</span></th><th scope="col" class="c-level sortable" data-sort="level" title="点击按等级排序">等级<span class="sort-ind">↕</span></th><th scope="col" class="c-social sortable" data-sort="social" title="点击按好友数排序">好友/群<span class="sort-ind">↕</span></th><th scope="col" class="sortable" data-sort="code" title="点击按同步状态排序">同步状态 · 默认目标<span class="sort-ind">↕</span></th><th scope="col">操作</th></tr></thead>
           <tbody id="accounts"></tbody>
         </table>
       </div>
@@ -892,9 +893,9 @@
   <section class="tab-panel" id="panel-panels" role="tabpanel" aria-labelledby="tab-panels" data-panel="panels">
     <div class="card">
       <div class="card-head">
-        <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="3"/><path d="m10 9 4 3-4 3z"/></svg>farm 面板</h2>
+        <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="3"/><path d="m10 9 4 3-4 3z"/></svg>面板管理</h2>
         <div class="head-right">
-        <button class="mini-btn" id="btnRepairNow" type="button" title="立即检查面板账号：已停止的补推、已推送过但缺失的补回当前面板">立即巡检</button>
+        <button class="mini-btn" id="btnRepairNow" type="button" title="立即检查面板账号：已停止的补推、已推送过但缺失的补回路由目标面板">立即巡检</button>
         <button class="btn primary btn-compact" id="btnAddPanel">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>添加面板
         </button>
@@ -902,7 +903,7 @@
       </div>
       <div class="faint retry-hint" id="retryHint"></div>
       <div class="panel-grid" id="panelList"></div>
-      <div class="faint hint">★ 为当前推送目标（上线 / 定时刷新 / 推送全部均发往此面板）<br>
+      <div class="faint hint">★ 为当前推送目标（未设置账号或分组路由时使用此面板）<br>
         旧版 qq-farm-bot：填写访问 Code；qq-farm-bot-404：填管理员用户名密码，或直接粘贴面板左下角「我的 Token」。Token 随面板重启/退出登录失效，失效后重新粘贴即可。</div>
     </div>
 
@@ -932,7 +933,7 @@
             <button class="hf-btn" data-f="panel" type="button" aria-pressed="false">面板</button>
           </div>
           <button class="mini-btn" id="btnHistClear" type="button" title="清空动态流">清空</button>
-          <span class="faint">最近 120 条</span>
+          <span class="faint">最近 90 天，最多 10,000 条</span>
         </div>
       </div>
       <div class="timeline" id="timeline"></div>
@@ -951,25 +952,25 @@
       </div>
       <form class="form" id="cfg" onsubmit="return false">
         <fieldset class="settings-group">
-          <legend>自动推送</legend>
+          <legend>基础设置 · 自动推送</legend>
           <label for="f_enabled">启用推送</label>
           <span class="switch"><input type="checkbox" id="f_enabled"><i></i></span>
           <label for="f_pushOnLogin">上线自动推送</label>
           <span class="switch"><input type="checkbox" id="f_pushOnLogin"><i></i></span>
-          <label for="f_refreshMinutes">定时刷新</label>
+          <label for="f_refreshMinutes">定时刷新（分钟）</label>
           <div class="field"><input type="number" id="f_refreshMinutes" min="0" step="5"><small>每 N 分钟重推一次；会重启运行中的会话，建议保持 0（低于 5 分钟按 5 分钟计）</small></div>
         </fieldset>
         <fieldset class="settings-group">
-          <legend>巡检与保鲜</legend>
+          <legend>高级设置 · 巡检与保鲜</legend>
           <label for="f_autoRepair">自动巡检</label>
           <span class="switch"><input type="checkbox" id="f_autoRepair"><i></i></span>
-          <label for="f_repairMinutes">巡检间隔</label>
-          <div class="field"><input type="number" id="f_repairMinutes" min="5" max="1440"><small>每 N 分钟检查一次：面板里已停止的账号自动补推；已推送过但被删除的账号补回当前面板</small></div>
-          <label for="f_staleHours">Code 保鲜</label>
+          <label for="f_repairMinutes">巡检间隔（分钟）</label>
+          <div class="field"><input type="number" id="f_repairMinutes" min="5" max="1440"><small>每 N 分钟检查一次：面板里已停止的账号自动补推；已推送过但被删除的账号补回路由目标面板</small></div>
+          <label for="f_staleHours">Code 保鲜（小时）</label>
           <div class="field"><input type="number" id="f_staleHours" min="0" max="168"><small>在线账号 Code 超过 N 小时自动重推一次（0 关闭）；仅重推已推送过的账号，不会新增</small></div>
         </fieldset>
         <fieldset class="settings-group">
-          <legend>失败告警</legend>
+          <legend>高级设置 · 失败告警</legend>
           <label for="f_alertFails">告警阈值</label>
           <div class="field"><input type="number" id="f_alertFails" min="1" max="10"><small>同一面板连续推送失败 N 次后触发告警；失败会自动按 30 秒 / 2 分钟 / 5 分钟重试，面板恢复后自动解除</small></div>
           <label for="f_webhook">Webhook</label>
@@ -1099,7 +1100,7 @@ set('btnTheme', b => b.onclick = () => {
 /* ---------- 标签页 ---------- */
 const TAB_KEY = 'mengka-admin-tab'
 function showTab(name) {
-  const TAB_TITLES = { accounts: '账号管理', panels: 'farm 面板', activity: '推送动态', settings: '设置' }
+  const TAB_TITLES = { accounts: '账号管理', panels: '面板管理', activity: '推送动态', settings: '设置' }
   const TAB_SUBS = {
     accounts: '萌卡账号总览、在线状态与批量推送',
     panels: '多面板接入、账号映射与推送目标',
@@ -1116,6 +1117,8 @@ function showTab(name) {
   })
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === name))
   localStorage.setItem(TAB_KEY, name)
+  document.body.dataset.tab=name
+  if(typeof onTabChanged==='function') onTabChanged(name)
 }
 document.querySelectorAll('.tab').forEach(t => t.onclick = () => showTab(t.dataset.tab))
 // 标签页键盘导航：左右方向键 / Home / End
@@ -1438,6 +1441,7 @@ function renderAccountCards(groups, s, emptyMsg){
 /** 账号详情抽屉：账号信息 / 面板接入 / 协议实例 / 相关动态。 */
 function openAccount(selfId){
   const s=STATE; if(!s) return
+  $('drawer').dataset.self=String(selfId)
   const g=collectGroups(s).find(x=>String(x.self_id)===String(selfId)); if(!g) return
   const insts=g.instances
   const onlineN=insts.filter(a=>a.online).length
@@ -1447,14 +1451,14 @@ function openAccount(selfId){
 
   const android=g.instances.find(a=>(a.platform||'').toLowerCase().includes('android'))
   const panels=Array.isArray(s.panels)?s.panels:[]
-  const panelRows=panels.length?panels.map((p,i)=>{
+  const panelRows=panels.length?panels.map((p,i)=>({p,i})).sort((a,b)=>Number(a.p.ok)-Number(b.p.ok)).map(({p,i})=>{
     const hit=(p.accounts||[]).find(a=>String(a.qq??a.uin??'')===String(g.self_id))
     const canPush=Boolean(android&&android.online)
     const pushBtn=canPush?`<button class="mini-btn" data-dwpush="${i}" title="推送到该面板">${ICONS.upload}${hit?'重推':'推送'}</button>`:''
     if(!hit) return `<div class="dw-item"><span>${esc(p.label)}</span><span class="pill n">未接入</span>${pushBtn}</div>`
     const code=hit.code?String(hit.code):''
     const short=code?code.slice(0,10)+'…':'—'
-    return `<div class="dw-item"><span>${esc(p.label)}</span>${hit.running?'<span class="pill g">运行中</span>':'<span class="pill y">已停止</span>'}<span class="faint" title="${esc(code)}">Code ${esc(short)}</span>${pushBtn}</div>`
+    return `<div class="dw-item"><span>${esc(p.label)}</span>${hit.running?'<span class="pill g">运行中</span>':'<span class="pill y">已停止</span>'}${pushBtn}</div>`
   }).join(''):'<div class="faint">尚未配置面板</div>'
 
   const instRows=insts.map(a=>`<div class="dw-item">
@@ -1628,7 +1632,7 @@ function render(s){
     const todayStart=new Date(nowMs); todayStart.setHours(0,0,0,0)
     const todayHist=(s.history||[]).filter(h=>Number(h.time)>=todayStart.getTime())
     const todayCount=todayHist.length
-    const pushToday=todayHist.filter(h=>h.type==='push').length
+    const pushToday=s.stats?.todayOk||0
     const okPanels=panels.filter(p=>p.ok).length
     const hour=new Date(nowMs).getHours()
     const hiWord=hour<6?'夜深了':hour<12?'上午好':hour<18?'下午好':'晚上好'
@@ -1639,13 +1643,13 @@ function render(s){
       : okPanels===panels.length ? '所有面板连接正常'
       : `${panels.length-okPanels} 个面板不可达`)
     set('greetPush', e=>e.textContent=pushToday)
-    set('greetActivity', e=>e.textContent=todayCount)
+    set('greetActivity', e=>e.textContent=s.stats?.todayFail||0)
     set('greetPanels', e=>e.textContent=panels.length?`${okPanels}/${panels.length}`:'–')
     // 侧栏底部概览（仅桌面端可见）
     set('sfPanels', e=>{ e.textContent=panels.length?`${okPanels}/${panels.length}`:'–'
       e.className = !panels.length ? '' : (okPanels<panels.length ? 'err' : 'ok') })
     set('sfOnline', e=>e.textContent=online)
-    set('sfPush', e=>e.textContent=pushToday)
+    set('sfPush', e=>e.textContent=s.stats?.todayOk||0)
     set('accountCount', e=>e.textContent=allGroups.length+' 个账号 · '+s.accounts.length+' 个实例')
     renderDonut(online,allGroups.length)
 
@@ -1678,6 +1682,7 @@ function render(s){
     }else if(accFilter==='pending'){
       groupList=groupList.filter(g=>syncStatus(g,s).pending)
     }
+    if($('groupFilter')?.value) groupList=groupList.filter(g=>g.instances.some(a=>s.routing?.accounts?.[`${a.self_id}:${a.protocol_id}`]?.group===$('groupFilter').value))
     syncSortHeaders()
     const emptyMsg=accFilter==='online'
       ? (kw?`没有匹配「${kw}」的在线账号`:'当前没有在线账号')
@@ -1811,6 +1816,7 @@ function render(s){
     renderDiagnosis(s)
 
     /* 设置 */
+    if(!settingsDirty){
     set('f_enabled', e => e.checked=!!cfg.enabled)
     set('f_pushOnLogin', e => e.checked=!!cfg.pushOnLogin)
     set('f_refreshMinutes', e => e.value=cfg.refreshMinutes??0)
@@ -1819,8 +1825,9 @@ function render(s){
     set('f_repairMinutes', e => e.value=cfg.repairMinutes??30)
     set('f_alertFails', e => e.value=cfg.alertFails??3)
     set('f_webhook', e => e.value=cfg.webhook||'')
+    }
     set('cfgSummary', e => e.textContent=cfg.enabled
-      ?`已启用 · ${panels.filter(p=>p.ok).length}/${panels.length} 面板正常 · 每${cfg.refreshMinutes||0}分钟刷新${cfg.staleHours>0?' · 保鲜 '+cfg.staleHours+'h':''}`
+      ?`已启用 · ${panels.filter(p=>p.ok).length}/${panels.length} 面板正常 · ${cfg.refreshMinutes>0?`每 ${cfg.refreshMinutes} 分钟刷新`:'定时刷新已关闭'}${cfg.staleHours>0?' · 保鲜 '+cfg.staleHours+'h':''}`
       :'未启用')
     set('nextRun', e=>{
       const sc=s.schedule||{}
@@ -1831,6 +1838,7 @@ function render(s){
       if(sc.nextRepairAt) parts.push('下次自动巡检 '+fmt(sc.nextRepairAt))
       e.textContent = parts.length ? parts.join(' · ') : '定时任务未启用（刷新与保鲜均为 0）'
     })
+    renderEnhancements(s)
   } catch(e){ console.warn('render 失败（已忽略）：', e) }
 }
 
@@ -1924,7 +1932,7 @@ function renderPanels(s){
     const arr=panelMsHist[k]||(panelMsHist[k]=[])
     arr.push(Number(p.ms)); if(arr.length>24) arr.shift()
   })
-  const html=rows.map((p,i)=>{
+  const html=rows.map((p,i)=>({p,i})).sort((a,b)=>Number(a.p.ok)-Number(b.p.ok)).map(({p,i})=>{
     const isActive=i===active
     const status=p.ok
       ?`<span class="status-chip ok"><span class="dot"></span>正常</span>`
@@ -1937,10 +1945,10 @@ function renderPanels(s){
       :(p.mode==='admin'
         ?`<span class="pill n mode-chip" title="qq-farm-bot-404 管理员登录${p.username?'：'+esc(p.username):''}">管理员</span>`
         :`<span class="pill n mode-chip" title="旧版 qq-farm-bot：访问 Code 登录">访问码</span>`)
-    const authWarn=p.hasAuth===false?`<span class="pill y mode-chip">未配置${p.mode==='token'?' Token':(p.mode==='admin'?'密码':'访问 Code')}</span>`:''
-    const codeText=a=>{const c=String(a.code||'');return c?(c.length>8?c.slice(0,8)+'…':c):'✓'}
+    const authWarn=false?`<span class="pill y mode-chip">未配置${p.mode==='token'?' Token':(p.mode==='admin'?'密码':'访问 Code')}</span>`:''
+    const codeText=a=>a.running===false?'已停止':'已接入'
     const accChips=(p.accounts||[]).slice(0,8).map(a=>
-      `<span class="pill ${a.running===false?'y':(a.code?'g':'n')}" title="${esc(a.name||a.uin)}${a.running===false?'（已停止）':(a.running?'（运行中）':'')}">${esc(a.uin)} · ${esc(codeText(a))}</span>`).join('')
+      `<span class="pill ${a.running===false?'y':(a.hasCode?'g':'n')}" title="${esc(a.name||a.uin)}${a.running===false?'（已停止）':(a.running?'（运行中）':'')}">${esc(a.uin)} · ${esc(codeText(a))}</span>`).join('')
     return `<div class="panel-card ${isActive?'active':''}">
       <div class="panel-top">
         <button class="star ${isActive?'on':''}" data-act="active" data-i="${i}" title="${isActive?'当前推送目标':'设为推送目标'}">${ICONS.star}</button>
@@ -1955,17 +1963,17 @@ function renderPanels(s){
         ${spark}
         ${accSummary}
         ${p.warning?`<span class="pill y" title="${esc(p.warning)}">默认密码</span>`:''}
-        ${p.authBlocked?`<span class="pill y" title="${esc(p.authError||'认证失败')}">认证失败 · 自动推送暂停</span>`:''}
-        ${p.fails>0?`<span class="pill ${p.alert?'y':'n'}" title="${p.alert?'已触发告警，推送成功后自动解除':'连续推送失败次数'}">失败 ${p.fails} 次${p.alert?' · 告警':''}</span>`:''}
+
+
         <span class="panel-check">最近检查 ${p.checkedAt?new Date(p.checkedAt).toLocaleTimeString('zh-CN',{hour12:false}):'尚未检查'}</span>
       </div>
       ${accChips?`<div class="panel-accs"><span class="panel-accs-label">面板账号</span><div class="panel-accs-scroll">${accChips}</div></div>`:''}
       <div class="panel-actions">
-        <button class="mini-btn" data-act="test" data-i="${i}" title="测试面板连通性（登录 + 拉取账号）">${ICONS.link}测试</button>
+        <button class="mini-btn" data-act="test" data-i="${i}" title="测试面板连通性（登录 + 拉取账号）">${ICONS.link}重新检测</button>
         <button class="mini-btn" data-act="push" data-i="${i}" title="推送全部在线安卓账号到此面板">${ICONS.upload}推送到此</button>
         <a class="mini-btn" href="${esc(p.baseUrl)}" target="_blank" rel="noopener" title="打开面板">${ICONS.link}打开</a>
         <span class="panel-actions-gap"></span>
-        <button class="mini-btn" data-act="edit" data-i="${i}" title="编辑面板">${ICONS.edit}编辑</button>
+        <button class="mini-btn" data-act="edit" data-i="${i}" title="编辑面板">${ICONS.edit}${p.authBlocked||p.hasAuth===false?'更新凭据':'编辑'}</button>
         <button class="mini-btn danger" data-act="del" data-i="${i}" title="删除面板">${ICONS.trash}删除</button>
       </div>
     </div>`
@@ -2123,15 +2131,16 @@ async function pushOne(b){
   BUSY=false;load()
 }
 
+let LOAD_PROMISE=null
 async function load(){
-  try{
-    const res=await fetch('api/state?h='+historyLimit)
-    if(!res.ok) throw new Error('HTTP '+res.status)
-    const j=await res.json()
-    if(j.error) throw new Error(j.error)
-    set('accErr', e => e.textContent='')
-    render(j)
-  }catch(e){ set('accErr', el => el.textContent='加载失败：'+e.message+'（将自动重试）') }
+ if(LOAD_PROMISE) return LOAD_PROMISE
+ LOAD_PROMISE=(async()=>{try{
+  const res=await fetch('api/state?h='+historyLimit,{signal:AbortSignal.timeout(20000)})
+  if(!res.ok) throw new Error('HTTP '+res.status)
+  const j=await res.json();if(j.error) throw new Error(j.error)
+  set('accErr',e=>e.textContent='');render(j);markFreshness(true,j)
+ }catch(e){markFreshness(false,null,e.message)}finally{LOAD_PROMISE=null}})()
+ return LOAD_PROMISE
 }
 setInterval(()=>{
   SECONDS-=1
@@ -2225,7 +2234,7 @@ set('btnExport', b => b.onclick=()=>{
     accounts:STATE.accounts||[],
     panels:(STATE.panels||[]).map(p=>({
       ...p,
-      accounts:(p.accounts||[]).map(a=>({id:a.id,uin:a.uin,name:a.name,platform:a.platform,running:a.running,hasCode:!!a.code})),
+      accounts:(p.accounts||[]).map(a=>({id:a.id,uin:a.uin,name:a.name,platform:a.platform,running:a.running,hasCode:!!a.hasCode})),
     })),
     history:STATE.history||[],
   }
@@ -2255,9 +2264,7 @@ set('btnHistClear', b => b.onclick=async ()=>{
   catch(e){ toast('清空失败：'+e.message,false) }
 })
 
-skeleton()
-load()
-
 </script>
+<script src="enhancements.js"></script>
 </body>
 </html>

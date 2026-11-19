@@ -51,18 +51,25 @@ func (b Bot) isAndroid() bool {
 }
 
 type Activity struct {
-	Time    int64  `json:"time"`
-	Type    string `json:"type"`
-	Message string `json:"message"`
-	Detail  string `json:"detail,omitempty"`
-	OK      *bool  `json:"ok,omitempty"`
+	Time       int64  `json:"time"`
+	Type       string `json:"type"`
+	Message    string `json:"message"`
+	Detail     string `json:"detail,omitempty"`
+	OK         *bool  `json:"ok,omitempty"`
+	SelfID     string `json:"self_id,omitempty"`
+	ProtocolID int64  `json:"protocol_id"`
+	Panel      string `json:"panel,omitempty"`
+	PanelURL   string `json:"panel_url,omitempty"`
+	Outcome    string `json:"outcome,omitempty"`
 }
 
 type Bridge struct {
-	cfg     *Config
-	ipc     *IPC
-	dataDir string
-	client  *http.Client
+	ops            *Operations
+	activitySaveMu sync.Mutex
+	cfg            *Config
+	ipc            *IPC
+	dataDir        string
+	client         *http.Client
 
 	mu           sync.Mutex
 	stateMu      sync.Mutex
@@ -118,6 +125,7 @@ func newBridge(cfg *Config, ipc *IPC, dataDir string) *Bridge {
 		alertOn:      map[string]bool{},
 	}
 	b.loadState()
+	b.ops = newOperations(b)
 	return b
 }
 
@@ -149,8 +157,8 @@ func (b *Bridge) loadState() {
 			PushTimes map[string]int64 `json:"pushTimes"`
 		}
 		if json.Unmarshal(raw, &d) == nil {
-			if len(d.Activity) > 120 {
-				d.Activity = d.Activity[:120]
+			if len(d.Activity) > historyCapacity {
+				d.Activity = d.Activity[:historyCapacity]
 			}
 			b.activity = d.Activity
 			if d.PushTimes != nil {
@@ -175,14 +183,20 @@ func (b *Bridge) saveTokens() {
 }
 
 func (b *Bridge) saveActivity() {
+	b.activitySaveMu.Lock()
+	defer b.activitySaveMu.Unlock()
 	if b.dataDir == "" {
 		return
 	}
 	b.mu.Lock()
+	times := map[string]int64{}
+	for k, v := range b.pushTimes {
+		times[k] = v
+	}
 	payload := struct {
 		Activity  []Activity       `json:"activity"`
 		PushTimes map[string]int64 `json:"pushTimes"`
-	}{append([]Activity(nil), b.activity...), b.pushTimes}
+	}{append([]Activity(nil), b.activity...), times}
 	b.mu.Unlock()
 	data, _ := json.MarshalIndent(payload, "", "  ")
 	_ = writePrivateFile(filepath.Join(b.dataDir, "activity.json"), append(data, '\n'))
@@ -202,14 +216,7 @@ func (b *Bridge) clearTokens() {
 }
 
 func (b *Bridge) LogActivity(kind, message, detail string, ok *bool) {
-	b.mu.Lock()
-	item := Activity{Time: time.Now().UnixMilli(), Type: kind, Message: message, Detail: detail, OK: ok}
-	b.activity = append([]Activity{item}, b.activity...)
-	if len(b.activity) > 120 {
-		b.activity = b.activity[:120]
-	}
-	b.mu.Unlock()
-	b.saveActivity()
+	b.appendActivity(Activity{Time: time.Now().UnixMilli(), Type: kind, Message: message, Detail: detail, OK: ok})
 }
 
 func (b *Bridge) ClearActivity() {
@@ -501,18 +508,13 @@ func (b *Bridge) farmFetchInternal(index int, method, path string, payload any, 
 
 	res, err := b.client.Do(req)
 	if err != nil {
-		if method == http.MethodPost && !netRetried {
-			time.Sleep(600 * time.Millisecond)
-			return b.farmFetchInternal(index, method, path, payload, retried, true)
+		if method != http.MethodGet {
+			return nil, uncertainWriteError{fmt.Sprintf("面板「%s」写入响应中断，请先核实面板状态：%v", panel.Label, err)}
 		}
 		return nil, fmt.Errorf("面板「%s」请求失败：%v", panel.Label, err)
 	}
 	defer res.Body.Close()
 
-	if res.StatusCode >= 500 && method == http.MethodPost && !netRetried {
-		time.Sleep(800 * time.Millisecond)
-		return b.farmFetchInternal(index, method, path, payload, retried, true)
-	}
 	if res.StatusCode == http.StatusUnauthorized {
 		if !retried {
 			b.mu.Lock()
@@ -536,7 +538,20 @@ func (b *Bridge) farmFetchInternal(index int, method, path string, payload any, 
 	}
 
 	var body map[string]any
-	_ = json.NewDecoder(res.Body).Decode(&body)
+	decodeErr := json.NewDecoder(res.Body).Decode(&body)
+	if decodeErr != nil || body == nil {
+		if method != http.MethodGet {
+			return nil, uncertainWriteError{"写入结果无法确认，请先核实面板状态"}
+		}
+		return nil, errors.New("面板返回无效 JSON")
+	}
+	if res.StatusCode >= 500 && method == http.MethodPost && !netRetried && body["ok"] == false {
+		time.Sleep(800 * time.Millisecond)
+		return b.farmFetchInternal(index, method, path, payload, retried, true)
+	}
+	if res.StatusCode >= 500 && method != http.MethodGet && body["ok"] != false {
+		return nil, uncertainWriteError{"面板写入返回服务器错误，操作结果无法确认"}
+	}
 	if res.StatusCode/100 != 2 || (body != nil && body["ok"] == false) {
 		reason, _ := body["error"].(string)
 		if reason == "" {
@@ -581,8 +596,19 @@ func pickFarmCode(m map[string]any) (string, error) {
 
 // PushAccount 推送并记录连续失败次数，用于告警与面板状态展示。
 func (b *Bridge) PushAccount(bot Bot, index int) (map[string]any, error) {
+	b.cfg.operationMu.RLock()
+	defer b.cfg.operationMu.RUnlock()
+	return b.pushAccountTracked(bot, index)
+}
+func (b *Bridge) pushAccountTracked(bot Bot, index int) (map[string]any, error) {
 	res, err := b.pushAccount(bot, index)
-	if skipped, _ := res["skipped"].(bool); skipped {
+	if b.ops != nil {
+		b.ops.Record(bot, index, res, err)
+		if err == nil && res["busy"] != true {
+			b.ops.completeWaiting(bot, index)
+		}
+	}
+	if busy, _ := res["busy"].(bool); busy {
 		return res, err
 	}
 	b.trackPush(index, err)
@@ -596,7 +622,7 @@ func (b *Bridge) pushAccount(bot Bot, index int) (map[string]any, error) {
 	}
 	panel := panels[index]
 	// 同一账号同一面板同时只允许一个推送在途：巡检/定时/手动叠加时直接跳过
-	pushKey := fmt.Sprintf("%d:%d", index, bot.SelfID)
+	pushKey := fmt.Sprintf("%s:%d:%d", panel.BaseURL, bot.SelfID, bot.ProtocolID)
 	b.pushingMu.Lock()
 	if b.pushing[pushKey] {
 		b.pushingMu.Unlock()
@@ -674,7 +700,7 @@ func (b *Bridge) pushAccount(bot Bot, index int) (map[string]any, error) {
 		}
 	}
 	// Code 未变化时不重复 POST：避免无谓重启面板会话
-	if existingID != nil && strings.TrimSpace(existingCode) == strings.TrimSpace(code) && existingCode != "" && existingCode != "<nil>" {
+	if existingID != nil && strings.TrimSpace(existingCode) == strings.TrimSpace(code) && existingCode != "" && existingCode != "<nil>" && (panel.isAdmin() || existingRunning) {
 		// 404 面板更新已停止账号时不会自动启动，这里直接补启动
 		if panel.isAdmin() && !existingRunning {
 			if err := b.startAccount(index, existingID); err != nil {
@@ -682,6 +708,7 @@ func (b *Bridge) pushAccount(bot Bot, index int) (map[string]any, error) {
 			}
 			b.mu.Lock()
 			b.pushTimes[uin] = time.Now().UnixMilli()
+			b.pushTimes[targetPushKey(panel.BaseURL, bot)] = b.pushTimes[uin]
 			b.mu.Unlock()
 			b.saveActivity()
 			ok := true
@@ -694,6 +721,7 @@ func (b *Bridge) pushAccount(bot Bot, index int) (map[string]any, error) {
 		}
 		b.mu.Lock()
 		b.pushTimes[uin] = time.Now().UnixMilli()
+		b.pushTimes[targetPushKey(panel.BaseURL, bot)] = b.pushTimes[uin]
 		b.mu.Unlock()
 		b.saveActivity()
 		ok := true
@@ -709,10 +737,12 @@ func (b *Bridge) pushAccount(bot Bot, index int) (map[string]any, error) {
 		return nil, err
 	}
 	updated := existingID != nil
-	started := !updated
+	started := !updated || (!panel.isAdmin() && !existingRunning)
+	var startErr error
 	startNote := ""
 	if panel.isAdmin() && updated && !existingRunning {
 		if err := b.startAccount(index, existingID); err != nil {
+			startErr = fmt.Errorf("账号已写入，但启动失败：%w", err)
 			startNote = "，启动失败：" + err.Error()
 		} else {
 			started = true
@@ -720,6 +750,7 @@ func (b *Bridge) pushAccount(bot Bot, index int) (map[string]any, error) {
 	}
 	b.mu.Lock()
 	b.pushTimes[uin] = time.Now().UnixMilli()
+	b.pushTimes[targetPushKey(panel.BaseURL, bot)] = b.pushTimes[uin]
 	b.mu.Unlock()
 	b.saveActivity()
 	ok := true
@@ -729,13 +760,14 @@ func (b *Bridge) pushAccount(bot Bot, index int) (map[string]any, error) {
 	} else if started {
 		action = "Code 已更新并启动"
 	}
+	ok = startErr == nil
 	action += startNote
 	nick := ""
 	if bot.Nickname != "" {
 		nick = "（" + bot.Nickname + "）"
 	}
 	b.LogActivity("push", fmt.Sprintf("%s%s → %s：%s", uin, nick, panel.Label, action), "", &ok)
-	return map[string]any{"uin": uin, "updated": updated, "started": started, "panel": panel.Label}, nil
+	return map[string]any{"uin": uin, "updated": updated, "started": started, "panel": panel.Label}, startErr
 }
 
 // buildAccountPayload 按面板类型组装账号写入参数：
@@ -825,7 +857,9 @@ func (b *Bridge) PushAllOnline(index int) []map[string]any {
 				b.LogActivity("push", fmt.Sprintf("%d 推送失败：%v", bot.SelfID, err), "", &fail)
 				results[i] = map[string]any{"self_id": bot.SelfID, "protocol_id": bot.ProtocolID, "ok": false, "error": err.Error()}
 				// 失败后 30 秒自动重试一次（不阻塞本次响应）
-				go b.retryPushLater(bot, index)
+				if !isUncertainWrite(err) {
+					b.retryPushLater(bot, index)
+				}
 				return
 			}
 			out := map[string]any{"self_id": bot.SelfID, "protocol_id": bot.ProtocolID, "ok": true}
@@ -867,47 +901,10 @@ func (b *Bridge) Broadcast(bot Bot) ([]map[string]any, error) {
 
 // retryPushLater 失败后按 30s → 2min → 5min 退避重试三次；同一账号同一面板只保留一条重试链。
 func (b *Bridge) retryPushLater(bot Bot, index int) {
-	key := fmt.Sprintf("%d:%d", index, bot.SelfID)
-	b.pushingMu.Lock()
-	if b.retrying[key] {
-		b.pushingMu.Unlock()
-		return
+	ps := b.Panels()
+	if b.ops != nil && index >= 0 && index < len(ps) {
+		_, _ = b.ops.Enqueue(bot, ps[index].BaseURL, "manual", 30*time.Second)
 	}
-	b.retrying[key] = true
-	b.pushingMu.Unlock()
-	defer func() {
-		b.pushingMu.Lock()
-		delete(b.retrying, key)
-		delete(b.retryInfo, key)
-		b.pushingMu.Unlock()
-	}()
-
-	for attempt, wait := range []time.Duration{30 * time.Second, 2 * time.Minute, 5 * time.Minute} {
-		if b.authBlockedMessage(index) != "" {
-			return
-		}
-		label := ""
-		if panels := b.Panels(); index >= 0 && index < len(panels) {
-			label = panels[index].Label
-		}
-		b.pushingMu.Lock()
-		b.retryInfo[key] = map[string]any{
-			"self_id": bot.SelfID, "panel": label, "panel_index": index,
-			"attempt": attempt + 1, "next_at": time.Now().Add(wait).UnixMilli(),
-		}
-		b.pushingMu.Unlock()
-		time.Sleep(wait)
-		if _, err := b.PushAccount(bot, index); err == nil {
-			if attempt > 0 {
-				ok := true
-				b.LogActivity("push", fmt.Sprintf("%d 第 %d 次重试成功", bot.SelfID, attempt+1), "", &ok)
-			}
-			return
-		}
-	}
-	fail := false
-	b.LogActivity("push", fmt.Sprintf("%d 自动重试 3 次仍失败，请检查面板", bot.SelfID), "", &fail)
-	b.raiseAlert(index, "自动重试 3 次仍失败，请检查面板")
 }
 
 // trackPush 更新面板连续失败计数；达到阈值时触发一次告警，恢复后自动清除。
@@ -978,6 +975,15 @@ func (b *Bridge) alertInfo(baseURL string) (int, bool) {
 
 // RetryQueue 返回当前排队中的失败重试任务。
 func (b *Bridge) RetryQueue() []map[string]any {
+	if b.ops != nil {
+		out := []map[string]any{}
+		for _, t := range b.ops.Tasks() {
+			if t.Status == "retry_wait" {
+				out = append(out, map[string]any{"self_id": t.SelfID, "panel": t.Panel, "attempt": t.Attempt + 1, "next_at": t.NextAt, "task_id": t.ID})
+			}
+		}
+		return out
+	}
 	b.pushingMu.Lock()
 	defer b.pushingMu.Unlock()
 	out := make([]map[string]any, 0, len(b.retryInfo))
@@ -1035,6 +1041,8 @@ func (b *Bridge) notify(title, detail, level string) {
 }
 
 func (b *Bridge) TestPanel(index int) (map[string]any, error) {
+	b.cfg.operationMu.RLock()
+	defer b.cfg.operationMu.RUnlock()
 	panels := b.Panels()
 	if index < 0 || index >= len(panels) {
 		return nil, errors.New("目标面板不存在")
@@ -1063,6 +1071,8 @@ func (b *Bridge) TestPanel(index int) (map[string]any, error) {
 }
 
 func (b *Bridge) PanelStatus() []map[string]any {
+	b.cfg.operationMu.RLock()
+	defer b.cfg.operationMu.RUnlock()
 	panels := b.Panels()
 	out := make([]map[string]any, len(panels))
 	var wg sync.WaitGroup
@@ -1111,7 +1121,7 @@ func (b *Bridge) PanelStatus() []map[string]any {
 							}
 							accounts = append(accounts, map[string]any{
 								"id": acc["id"], "uin": uin, "name": acc["name"],
-								"code": code, "platform": acc["platform"], "running": running,
+								"hasCode": code != "", "platform": acc["platform"], "running": running,
 							})
 						}
 					}
@@ -1141,6 +1151,12 @@ func (b *Bridge) PanelStatus() []map[string]any {
 			fails, alerting := b.alertInfo(panel.BaseURL)
 			item["fails"] = fails
 			item["alert"] = alerting
+			if msg, ok := item["error"].(string); ok {
+				item["error"] = b.redact(msg)
+			}
+			if msg, ok := item["authError"].(string); ok {
+				item["authError"] = b.redact(msg)
+			}
 			out[i] = item
 		}(i, panel)
 	}
@@ -1192,7 +1208,7 @@ func (b *Bridge) OnBotOnline(event map[string]any) {
 		logf("QQ %d（%s 协议）不支持农场 Code，忽略上线事件", selfID, me.Platform)
 		return
 	}
-	b.LogActivity("online", fmt.Sprintf("QQ %d（协议 %d）上线", selfID, protoID), "", nil)
+	b.appendActivity(Activity{Time: time.Now().UnixMilli(), Type: "online", SelfID: strconv.FormatInt(selfID, 10), ProtocolID: protoID, Message: fmt.Sprintf("QQ %d（协议 %d）上线", selfID, protoID)})
 
 	farm := b.cfg.Get()
 	if !farm.Enabled || !farm.PushOnLogin {
@@ -1219,11 +1235,8 @@ func (b *Bridge) OnBotOnline(event map[string]any) {
 	b.lastAutoPush[key] = now
 	b.mu.Unlock()
 
-	if _, err := b.PushAccount(Bot{SelfID: selfID, ProtocolID: protoID}, b.activeIndex(panels)); err != nil {
-		logf("farm-bot 推送失败（QQ %d）：%v", selfID, err)
-		return
-	}
-	logf("farm-bot 推送完成：QQ %d", selfID)
+	b.QueueAutomatic(*me)
+	logf("farm-bot 自动任务已排队：QQ %d", selfID)
 }
 
 func (b *Bridge) OnBotOffline(event map[string]any) {
@@ -1241,7 +1254,7 @@ func (b *Bridge) OnBotOffline(event map[string]any) {
 	if text, ok := event["err_msg"].(string); ok && text != "" {
 		msg += "：" + text
 	}
-	b.LogActivity("offline", msg, "", nil)
+	b.appendActivity(Activity{Time: time.Now().UnixMilli(), Type: "offline", SelfID: strconv.FormatInt(selfID, 10), ProtocolID: protoID, Message: msg})
 }
 
 func (b *Bridge) RefreshStaleCodes() []map[string]any {
@@ -1258,15 +1271,18 @@ func (b *Bridge) RefreshStaleCodes() []map[string]any {
 		if !bot.Online || !bot.isAndroid() {
 			continue
 		}
-		ts, ok := b.PushTime(bot.SelfID)
-		if !ok || time.Now().UnixMilli()-ts <= int64(farm.StaleHours)*3600_000 {
-			continue
-		}
-		if _, err := b.PushAccount(bot, b.activeIndex(b.Panels())); err != nil {
-			logf("Code 保鲜推送 %d 失败：%v", bot.SelfID, err)
-			results = append(results, map[string]any{"self_id": bot.SelfID, "ok": false, "error": err.Error()})
-		} else {
-			results = append(results, map[string]any{"self_id": bot.SelfID, "ok": true})
+		for _, base := range b.ops.Targets(bot, true) {
+			b.mu.Lock()
+			ts, ok := b.pushTimes[targetPushKey(base, bot)]
+			if !ok {
+				ts, ok = b.pushTimes[strconv.FormatInt(bot.SelfID, 10)]
+			}
+			b.mu.Unlock()
+			if !ok || time.Now().UnixMilli()-ts <= int64(farm.StaleHours)*3600_000 {
+				continue
+			}
+			_, err := b.ops.Enqueue(bot, base, "automatic", 0)
+			results = append(results, map[string]any{"self_id": bot.SelfID, "panel_url": base, "ok": err == nil, "queued": true})
 		}
 	}
 	if len(results) > 0 {
@@ -1325,7 +1341,7 @@ func (b *Bridge) StartTimers() {
 					if !b.cfg.Get().Enabled {
 						return
 					}
-					b.PushAllOnline(b.activeIndex(b.Panels()))
+					b.PushAutomaticAll()
 				case <-stop:
 					return
 				}
@@ -1422,7 +1438,6 @@ func (b *Bridge) RepairMissing() []map[string]any {
 	if len(online) == 0 {
 		return results
 	}
-	activeIdx := b.activeIndex(panels)
 
 	for i, panel := range panels {
 		list, err := b.farmFetch(i, http.MethodGet, "/api/accounts", nil)
@@ -1444,6 +1459,9 @@ func (b *Bridge) RepairMissing() []map[string]any {
 			}
 		}
 		for selfID, bot := range online {
+			if b.ops != nil && !b.ops.AutoAllowed(bot, panel.BaseURL) {
+				continue
+			}
 			uin := strconv.FormatInt(selfID, 10)
 			acc, exists := present[uin]
 			reason := ""
@@ -1451,7 +1469,7 @@ func (b *Bridge) RepairMissing() []map[string]any {
 				if running, isBool := acc["running"].(bool); isBool && !running {
 					reason = "面板账号已停止"
 				}
-			} else if i == activeIdx {
+			} else {
 				if _, pushed := b.PushTime(selfID); pushed {
 					reason = "面板账号缺失"
 				}
@@ -1459,12 +1477,9 @@ func (b *Bridge) RepairMissing() []map[string]any {
 			if reason == "" {
 				continue
 			}
-			if _, err := b.PushAccount(bot, i); err != nil {
-				fail := false
-				b.LogActivity("push", fmt.Sprintf("自动巡检：%s（%s → %s）补推失败：%v", uin, reason, panel.Label, err), "", &fail)
-				results = append(results, map[string]any{"uin": uin, "panel": panel.Label, "reason": reason, "ok": false, "error": err.Error()})
-			} else {
-				results = append(results, map[string]any{"uin": uin, "panel": panel.Label, "reason": reason, "ok": true})
+			if b.ops != nil {
+				_, err := b.ops.Enqueue(bot, panel.BaseURL, "automatic", 0)
+				results = append(results, map[string]any{"uin": uin, "panel": panel.Label, "reason": reason, "ok": err == nil, "queued": true})
 			}
 		}
 	}
