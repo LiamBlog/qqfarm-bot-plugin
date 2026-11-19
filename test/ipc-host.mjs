@@ -34,6 +34,12 @@ const summarize = (label, ok, detail = '') => {
 }
 const waitFor=async(fn)=>{const end=Date.now()+4000;while(Date.now()<end){if(await fn())return true;await new Promise(r=>setTimeout(r,25))}return false}
 const delay = ms => new Promise(r => setTimeout(r, ms))
+// A panel write can finish before the queued task is marked terminal.
+// Wait for the worker before mutating the fixture for the next scenario.
+const waitForTasksIdle=()=>waitFor(async()=>{
+  const data=await fetch(`${BASE}/api/tasks`).then(r=>r.json())
+  return Array.isArray(data.tasks)&&data.tasks.every(t=>!['queued','running','retry_wait'].includes(t.status))
+})
 
 /* ---------- 模拟 farm-bot 面板 ---------- */
 const farm = http.createServer((req, res) => {
@@ -192,12 +198,14 @@ summarize('自动巡检配置生效（下限 5 分钟）', repairCfg?.state?.con
 farmAccounts[0].running = false
 const repaired = await fetch(`${BASE}/api/repair_now`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(r => r.json()).catch(() => null)
 await waitFor(()=>farmAccounts[0]?.running===true)
-summarize('自动巡检：补推已停止的账号', repaired?.ok === true && repaired.results?.some(r => r.ok) && farmAccounts[0].running === true, `results=${repaired?.results?.length}`)
+const stoppedRepairSettled=await waitForTasksIdle()
+summarize('自动巡检：补推已停止的账号', stoppedRepairSettled && repaired?.ok === true && repaired.results?.some(r => r.ok) && farmAccounts[0].running === true, `results=${repaired?.results?.length}`)
 
 farmAccounts = farmAccounts.filter(a => String(a.qq) !== '10001')
 const restored = await fetch(`${BASE}/api/repair_now`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(r => r.json()).catch(() => null)
 await waitFor(()=>farmAccounts.some(a=>String(a.qq)==='10001'))
-summarize('自动巡检：补回被删除的已推送账号', restored?.ok === true && farmAccounts.some(a => String(a.qq) === '10001'), `results=${restored?.results?.length}`)
+const missingRepairSettled=await waitForTasksIdle()
+summarize('自动巡检：补回被删除的已推送账号', missingRepairSettled && restored?.ok === true && farmAccounts.some(a => String(a.qq) === '10001'), `results=${restored?.results?.length}`)
 
 const hist = await fetch(`${BASE}/api/state?h=2`).then(r => r.json()).catch(() => null)
 summarize('历史条数限制', Array.isArray(hist?.history) && hist.history.length <= 2, `history=${hist?.history?.length}`)
