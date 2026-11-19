@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # 构建 Go 版插件安装包：静态二进制 + 清单。
 # 用法：bash build.sh [版本号] [目标]
-#   目标：all（linux amd64+arm64）｜amd64｜arm64｜windows｜windows-arm64｜linux
+#   目标：all（Linux amd64+arm64、Windows amd64）｜linux｜amd64｜arm64｜windows｜windows-arm64
 set -euo pipefail
 cd "$(dirname "$0")"
 
 VERSION="${1:-3.7.27}"
 TARGET="${2:-all}"
 case "$TARGET" in
-  all|linux)       TARGETS=("linux/amd64" "linux/arm64") ;;
+  all)             TARGETS=("linux/amd64" "linux/arm64" "windows/amd64") ;;
+  linux)           TARGETS=("linux/amd64" "linux/arm64") ;;
   amd64)           TARGETS=("linux/amd64") ;;
   arm64)           TARGETS=("linux/arm64") ;;
   windows)         TARGETS=("windows/amd64") ;;
@@ -34,7 +35,11 @@ for SPEC in "${TARGETS[@]}"; do
   NAME="qqfarm-bot-ipc-plugin-${GOOSV}-${GOARCHV}-${VERSION}"
   PKG="$OUT/package-${GOOSV}-${GOARCHV}"
   BIN="qqfarm-bot"
-  [ "$GOOSV" = "windows" ] && BIN="qqfarm-bot.exe"
+  MIN_FRAMEWORK="3.0.0"
+  if [ "$GOOSV" = "windows" ]; then
+    BIN="qqfarm-bot.exe"
+    MIN_FRAMEWORK="3.0.7"
+  fi
 
   echo "[1/4] 编译 ${GOOSV}/${GOARCHV}"
   CGO_ENABLED=0 GOOS="$GOOSV" GOARCH="$GOARCHV" go build -trimpath \
@@ -44,6 +49,7 @@ for SPEC in "${TARGETS[@]}"; do
   echo "[2/4] 组装包目录（${GOOSV}/${GOARCHV}）"
   rm -rf "$PKG"; mkdir -p "$PKG/bin"
   cp "bin/${BIN%.exe}-${GOOSV}-${GOARCHV}${BIN#qqfarm-bot}" "$PKG/bin/$BIN"
+  chmod 755 "$PKG/bin/$BIN"
   cat > "$PKG/mengka-plugin.json" <<JSON
 {
   "schema": 3,
@@ -51,7 +57,7 @@ for SPEC in "${TARGETS[@]}"; do
   "plugin_id": "qqfarm-bot",
   "name": "农场桥接助手",
   "version": "${VERSION}",
-  "min_framework": "3.0.0",
+  "min_framework": "${MIN_FRAMEWORK}",
   "author": "mengka-bot",
   "notes": "将登录账号的 QQ 农场 Code 自动推送到 qq-farm-bot / qq-farm-bot-404 面板（Go 单二进制版，${GOOSV}-${GOARCHV}）",
   "runtime": {

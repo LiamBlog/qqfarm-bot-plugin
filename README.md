@@ -122,7 +122,7 @@
 | `admin.go` | 内置管理端 HTTP 接口 + 内嵌页面 |
 | `web/index.html` | 管理端页面（`go:embed` 打进二进制） |
 | `test/ipc-host.mjs` | 模拟框架宿主 + 面板的联调脚本（32 项） |
-| `build.sh` | 双架构编译 + 组装清单 + 打包 |
+| `build.sh` | 三平台编译 + 组装清单 + TAR.GZ 打包 |
 | `site/` | 落地页（纯静态） |
 | `docs/images/` | 宣传图 |
 | `CHANGELOG.md` / `RELEASE-NOTES-3.x.md` | 版本记录 |
@@ -130,13 +130,24 @@
 ## 构建
 
 ```bash
-bash build.sh 3.7.27 all       # Linux amd64 + arm64
-bash build.sh 3.7.27 windows   # Windows amd64（bin/qqfarm-bot.exe）
-bash build.sh 3.7.27 windows-arm64
+bash build.sh                 # 默认版本 3.7.27，一次生成三个平台的 TAR.GZ 插件包
+bash build.sh 3.7.27 all       # Linux amd64 + Linux arm64 + Windows amd64
+bash build.sh 3.7.27 linux     # 仅 Linux 双架构
+bash build.sh 3.7.27 windows   # 仅 Windows amd64（bin/qqfarm-bot.exe）
 # 单平台：bash build.sh 3.7.27 amd64
 ```
 
-构建要求：Go 1.22+，`CGO_ENABLED=0`（脚本已设置），产物为静态链接 ELF，不依赖容器 glibc。
+构建要求：Go 1.25+、Bash，以及 `tar`、`sha256sum` 等常用命令。`CGO_ENABLED=0`（脚本已设置）；Linux 产物为静态链接 ELF，不依赖容器 glibc；Windows 产物为 PE 可执行文件。
+
+默认在 `dist/` 生成以下三个可导入插件包，每个包另附同名 `.tar.gz.sha256` 校验文件：
+
+| 平台 | 插件包（以 3.7.27 为例） |
+| --- | --- |
+| Linux amd64 | `qqfarm-bot-ipc-plugin-linux-amd64-3.7.27.tar.gz` |
+| Linux arm64 | `qqfarm-bot-ipc-plugin-linux-arm64-3.7.27.tar.gz` |
+| Windows amd64 | `qqfarm-bot-ipc-plugin-windows-amd64-3.7.27.tar.gz` |
+
+三个包均将 `mengka-plugin.json` 放在压缩包根目录，入口位于 `bin/`；Linux 入口保留执行权限。Windows 包要求萌卡 NT 3.0.7 或更高版本。GitHub Release 同样直接提供这三个 `.tar.gz` 插件包及校验文件。
 
 ## 联调
 

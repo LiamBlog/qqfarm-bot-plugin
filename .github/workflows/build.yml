@@ -68,6 +68,7 @@ jobs:
           path: |
             dist/*.tar.gz
             dist/*.sha256
+          if-no-files-found: error
           retention-days: 7
 
   release:
@@ -83,10 +84,8 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
-      - name: 构建 Linux 双架构 + Windows
-        run: |
-          bash build.sh "${GITHUB_REF_NAME#v}" all
-          bash build.sh "${GITHUB_REF_NAME#v}" windows
+      - name: 构建三平台 TAR.GZ 插件包
+        run: bash build.sh "${GITHUB_REF_NAME#v}" all
       - name: 上传到 Release
         uses: softprops/action-gh-release@v2
         with:
