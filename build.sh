@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="${1:-3.7.24}"
+VERSION="${1:-3.7.27}"
 TARGET="${2:-all}"
 case "$TARGET" in
   all|linux)       TARGETS=("linux/amd64" "linux/arm64") ;;
@@ -67,7 +67,7 @@ for SPEC in "${TARGETS[@]}"; do
 JSON
 
   echo "[3/4] 冒烟：版本自检（${GOOSV}/${GOARCHV}）"
-  if [ "$GOOSV" = "linux" ] && [ "$GOARCHV" = "$(go env GOARCH)" ]; then
+  if [ "$GOOSV" = "$(go env GOOS)" ] && [ "$GOARCHV" = "$(go env GOARCH)" ]; then
     "$PKG/bin/$BIN" --version
   else
     echo "  跳过（宿主 $(go env GOOS)/$(go env GOARCH)，无法直接运行 ${GOOSV}/${GOARCHV}）"

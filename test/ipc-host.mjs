@@ -6,11 +6,12 @@ import { spawn } from 'node:child_process'
 import { mkdtempSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import readline from 'node:readline'
 import http from 'node:http'
 
-const PKG = join(new URL('..', import.meta.url).pathname, 'dist/package-linux-amd64')
-const ENTRY = join(PKG, 'bin/qqfarm-bot')
+const PKG = process.env.QQFARM_TEST_PACKAGE || fileURLToPath(new URL('../dist/package-linux-amd64', import.meta.url))
+const ENTRY = join(PKG, 'bin', process.platform === 'win32' ? 'qqfarm-bot.exe' : 'qqfarm-bot')
 const PLUGIN_ID = 'qqfarm-bot'
 // 版本从构建产物清单读取，CI 用开发版本号也能跑
 const VERSION = JSON.parse(readFileSync(join(PKG, 'mengka-plugin.json'), 'utf8')).version

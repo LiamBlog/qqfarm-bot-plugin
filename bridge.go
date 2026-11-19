@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -560,22 +559,22 @@ func (b *Bridge) fetchFarmCode(bot Bot) (string, error) {
 	return pickFarmCode(m)
 }
 
-// pickFarmCode 兼容官方返回表未固化的字段命名，排除疑似业务状态码的短数字。
+// pickFarmCode 只接受字符串凭据；兼容历史字段名，但不把状态或对象转换为 Code。
 func pickFarmCode(m map[string]any) (string, error) {
 	keys := []string{"code", "farm_code", "farmCode", "login_code", "loginCode", "auth_code", "authCode"}
-	short := regexp.MustCompile(`^\d{1,3}$`)
 	for _, k := range keys {
-		raw := strings.TrimSpace(fmt.Sprintf("%v", m[k]))
-		if raw == "" || raw == "<nil>" || short.MatchString(raw) {
+		raw, ok := m[k].(string)
+		if !ok {
+			continue
+		}
+		raw = strings.TrimSpace(raw)
+		if raw == "" || raw == "<nil>" || (len(raw) <= 3 && strings.Trim(raw, "0123456789") == "") {
 			continue
 		}
 		return raw, nil
 	}
-	encoded, _ := json.Marshal(m)
-	if len(encoded) > 200 {
-		encoded = encoded[:200]
-	}
-	return "", fmt.Errorf("框架未返回农场 Code，返回内容：%s", string(encoded))
+	// 原始返回值可能含登录凭据，不进入日志、管理端错误或诊断信息。
+	return "", errors.New("框架未返回有效的字符串农场 Code")
 }
 
 /* ---------- 推送 ---------- */
@@ -1520,7 +1519,7 @@ func samePanelAuth(a, b []Panel) bool {
 		return false
 	}
 	for i := range a {
-		if a[i].AccessCode != b[i].AccessCode || a[i].Username != b[i].Username || a[i].Password != b[i].Password {
+		if a[i].AccessCode != b[i].AccessCode || a[i].Username != b[i].Username || a[i].Password != b[i].Password || a[i].Token != b[i].Token || a[i].mode() != b[i].mode() {
 			return false
 		}
 	}

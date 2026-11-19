@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -27,13 +28,18 @@ func main() {
 		println(version)
 		return
 	}
-	conn, dataDir := loadConnection()
+	conn, dataDir, err := loadConnection()
+	if err != nil {
+		logf("插件启动失败：%v", err)
+		os.Exit(1)
+	}
 	if conn != nil && conn.InstanceID != "" {
 		instanceID = conn.InstanceID
 	}
 	logf("%s v%s 启动，数据目录 %s", pluginName, version, orDash(dataDir))
 
 	ipc := newIPC(os.Stdin, os.Stdout)
+	ipc.expectedInstanceID = instanceID
 
 	// hello 必须是最先发出的帧；其余初始化全部放到 ready 之后
 	if err := ipc.hello(); err != nil {
@@ -41,12 +47,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	var handleEvent func(map[string]any)
+	var handleEvent atomic.Value // 保存 func(map[string]any)，供事件读取协程安全访问。
 	done := make(chan struct{})
 	go func() {
 		err := ipc.run(func(event map[string]any) {
-			if handleEvent != nil {
-				handleEvent(event)
+			if handler, ok := handleEvent.Load().(func(map[string]any)); ok {
+				handler(event)
 			}
 		})
 		if err != nil {
@@ -57,6 +63,9 @@ func main() {
 
 	select {
 	case <-ipc.ready:
+	case <-done:
+		logf("IPC 在握手完成前已关闭")
+		os.Exit(1)
 	case <-time.After(10 * time.Second):
 		logf("IPC 握手超时（未收到 ready）")
 		os.Exit(1)
@@ -69,14 +78,14 @@ func main() {
 	cfg := LoadConfig(dataDir)
 	bridge := newBridge(cfg, ipc, dataDir)
 
-	handleEvent = func(event map[string]any) {
+	handleEvent.Store(func(event map[string]any) {
 		switch event["post_type"] {
 		case "bot_online":
 			bridge.OnBotOnline(event)
 		case "bot_offline":
 			bridge.OnBotOffline(event)
 		}
-	}
+	})
 
 	admin := newAdmin(cfg, bridge, dataDir)
 	admin.start()
