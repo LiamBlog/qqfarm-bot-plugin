@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="${1:-3.8.0}"
+VERSION="${1:-3.8.1}"
 TARGET="${2:-all}"
 case "$TARGET" in
   all)             TARGETS=("linux/amd64" "linux/arm64" "windows/amd64") ;;

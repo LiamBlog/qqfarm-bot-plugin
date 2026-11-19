@@ -804,16 +804,11 @@
 
   <section class="tab-panel active" id="panel-accounts" role="tabpanel" aria-labelledby="tab-accounts" data-panel="accounts">
   <section class="greet" id="greet" aria-label="今日概览">
-    <div class="g-av">农</div>
     <div class="g-main">
-      <div class="g-hi" id="greetHi">你好，管理员</div>
-      <div class="g-sub" id="greetSub">正在加载今日概览…</div>
+      <h2 class="g-hi" id="greetHi">今日概览</h2>
+      <div class="g-sub" id="greetSub">正在加载面板状态…</div>
     </div>
-    <div class="g-nums">
-      <div><b id="greetPush">–</b><span>今日成功</span></div>
-      <div><b id="greetActivity">–</b><span>今日失败</span></div>
-      <div><b id="greetPanels">–</b><span>接入面板</span></div>
-    </div>
+    <div class="overview-recent"><span>最近成功推送</span><time id="stLastPush">–</time></div>
   </section>
   <div class="notice" id="noPanelNotice" style="display:none">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
@@ -839,7 +834,7 @@
     </div>
     <div class="stat" data-stat="activity" role="button" tabindex="0" title="查看推送动态"><div class="ico amber">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
-      <div class="body"><div class="num" id="stLastPush"></div><div class="lbl">最近成功推送（跨面板）</div></div>
+      <div class="body"><div class="num" id="stTodaySuccess"></div><div class="lbl">今日成功</div><div class="stat-outcomes"><span id="stTodayFail">–</span> 失败 <span aria-hidden="true">·</span> <span id="stTodaySkipped">–</span> 跳过</div></div>
     </div>
   </section>
 
@@ -850,7 +845,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
             萌卡账号 <span class="badge" id="accountCount">–</span>
           </h2>
-          <div class="head-right"><span class="push-stat" id="pushStat" style="display:none"></span><span class="updated" id="updatedAt"></span></div>
+          <div class="head-right"><span class="updated" id="updatedAt"></span></div>
         </div>
         <div class="account-controls">
         <label class="sr-only" for="search">搜索账号</label>
@@ -1416,7 +1411,7 @@ function renderAccountCards(groups, s, emptyMsg){
       const canSelect=a.online&&isAndroid
       return `<div class="acc-inst">
         <div class="acc-row">
-          ${canSelect?`<input type="checkbox" class="rowCheck c-check" data-key="${cardKey}" ${selected.has(cardKey)?'checked':''}>`:''}
+          ${canSelect?`<input type="checkbox" class="rowCheck c-check" aria-label="选择 ${esc(g.nickname||String(g.self_id))} 协议 ${a.protocol_id}" data-key="${cardKey}" ${selected.has(cardKey)?'checked':''}>`:''}
           <span class="pill ${a.online?(isAndroid?'b':'n'):'n'}" title="${esc(a.protocol_version||a.platform||'')}">${isAndroid?ICONS.android:ICONS.pc}${esc(a.platform||'未知')} #${a.protocol_id}</span>
           <span class="pill ${a.online?'g':'r'}"><span class="dot"></span>${a.online?'在线':'离线'}</span>
           <span class="acc-meta">Lv.${esc(a.level??'–')} · 友 ${esc(a.friend_count??'–')} / 群 ${esc(a.group_count??'–')}</span>
@@ -1424,7 +1419,7 @@ function renderAccountCards(groups, s, emptyMsg){
         <div class="acc-row">${codePills}${pushBtn}</div>
       </div>`
     }).join('')
-    return `<div class="acc-card ${onlineN?'online':''}">${head}${body}</div>`
+    return `<div data-instances="${insts.length}" class="acc-card ${onlineN?'online':''}">${head}${body}</div>`
   }).join('')
   }
   if(!setHTML('accountCards', html)) return
@@ -1565,12 +1560,13 @@ function skeleton(){
 
 function numUp(id,target){
   const el=$(id); if(!el) return
-  const from=Number(el.dataset.v||0)
-  if(from===target){el.textContent=target;return}
+  const first=el.dataset.v===undefined,from=Number(el.textContent)||0
+  if(el._countFrame) cancelAnimationFrame(el._countFrame)
   el.dataset.v=target
-  const t0=performance.now(),dur=350
-  const step=t=>{const p=Math.min(1,(t-t0)/dur),v=Math.round(from+(target-from)*(1-Math.pow(1-p,3)));el.textContent=v;if(p<1)requestAnimationFrame(step)}
-  requestAnimationFrame(step)
+  if(first||from===target||matchMedia('(prefers-reduced-motion: reduce)').matches){el.textContent=target;return}
+  const t0=performance.now(),dur=180
+  const step=t=>{const p=Math.min(1,(t-t0)/dur);el.textContent=Math.round(from+(target-from)*(1-Math.pow(1-p,3)));if(p<1)el._countFrame=requestAnimationFrame(step)}
+  el._countFrame=requestAnimationFrame(step)
 }
 
 function renderDonut(online,total){
@@ -1586,13 +1582,7 @@ function render(s){
     set('fInstanceId', e => e.textContent=s.instance_id||'–')
     set('fDataPath', e => e.textContent=s.data_path||'–')
     set('updatedAt', e => e.textContent='更新于 '+new Date(s.now).toLocaleTimeString('zh-CN',{hour12:false}))
-    set('pushStat', e => {
-      const st=s.stats||{}, ok=st.todayOk||0, fail=st.todayFail||0
-      if(!ok&&!fail){ e.style.display='none'; return }
-      e.style.display=''
-      e.textContent='今日推送 '+ok+' 成功'+(fail?' · '+fail+' 失败':'')
-      e.classList.toggle('has-err', fail>0)
-    })
+
 
     const cfg=s.config||{}
     const panels=Array.isArray(s.panels)?s.panels:[]
@@ -1627,24 +1617,16 @@ function render(s){
     numUp('stPending',allGroups.filter(g=>syncStatus(g,s).pending).length)
     const pushed=allGroups.filter(g=>g.codeAge!=null).sort((a,b)=>a.codeAge-b.codeAge)
     set('stLastPush', e => {e.textContent=pushed.length?new Date(s.now-pushed[0].codeAge).toLocaleTimeString('zh-CN',{hour12:false}):'暂无';e.title=pushed.length?pushTime(pushed[0],s):'暂无成功推送记录'})
-    /* 概览问候卡：只呈现「今日 / 面板」视角，账号与在线等状态由下方统计卡承担 */
-    const nowMs=Number(s.now)||Date.now()
-    const todayStart=new Date(nowMs); todayStart.setHours(0,0,0,0)
-    const todayHist=(s.history||[]).filter(h=>Number(h.time)>=todayStart.getTime())
-    const todayCount=todayHist.length
-    const pushToday=s.stats?.todayOk||0
+    // 今日结果使用持久累计；不依赖当前历史分页。
+    numUp('stTodaySuccess',s.stats?.todayOk||0)
+    set('stTodayFail',e=>e.textContent=s.stats?.todayFail||0)
+    set('stTodaySkipped',e=>e.textContent=s.stats?.todaySkipped||0)
     const okPanels=panels.filter(p=>p.ok).length
-    const hour=new Date(nowMs).getHours()
-    const hiWord=hour<6?'夜深了':hour<12?'上午好':hour<18?'下午好':'晚上好'
-    set('greetHi', e=>e.textContent=`${hiWord}，管理员`)
     set('greetSub', e=>e.textContent = !hasPanelCfg ? '还没有接入面板，账号 Code 暂时无处推送'
       : !cfg.enabled ? '推送未启用，面板已就绪'
       : alerts.length ? `${alerts.length} 个面板告警，需要尽快处理`
       : okPanels===panels.length ? '所有面板连接正常'
       : `${panels.length-okPanels} 个面板不可达`)
-    set('greetPush', e=>e.textContent=pushToday)
-    set('greetActivity', e=>e.textContent=s.stats?.todayFail||0)
-    set('greetPanels', e=>e.textContent=panels.length?`${okPanels}/${panels.length}`:'–')
     // 侧栏底部概览（仅桌面端可见）
     set('sfPanels', e=>{ e.textContent=panels.length?`${okPanels}/${panels.length}`:'–'
       e.className = !panels.length ? '' : (okPanels<panels.length ? 'err' : 'ok') })
@@ -1684,11 +1666,12 @@ function render(s){
     }
     if($('groupFilter')?.value) groupList=groupList.filter(g=>g.instances.some(a=>s.routing?.accounts?.[`${a.self_id}:${a.protocol_id}`]?.group===$('groupFilter').value))
     syncSortHeaders()
-    const emptyMsg=accFilter==='online'
-      ? (kw?`没有匹配「${kw}」的在线账号`:'当前没有在线账号')
+    const emptyTitle=accFilter==='online'
+      ? (kw?`没有匹配「${esc(kw)}」的在线账号`:'当前没有在线账号')
       : accFilter==='pending'
-      ? (kw?`没有匹配「${kw}」的待处理账号`:'当前没有待处理账号')
-      : `没有匹配「${kw}」的账号`
+      ? (kw?`没有匹配「${esc(kw)}」的待处理账号`:'当前没有待处理账号')
+      : (kw?`没有匹配「${esc(kw)}」的账号`:'当前分组或状态下没有账号')
+    const emptyMsg=emptyTitle+'<p class="empty-help">试试其他关键词，或清除状态与分组筛选。</p><button type="button" class="mini-btn" data-reset-account-filters>清除筛选</button>'
     const accHtml=(()=>{
       if(!s.accounts.length) return `<tr><td colspan="8"><div class="empty">${ICONS.off}<div>暂无 Android 账号<br><span class="faint">请在萌卡框架登录手机 / 平板协议账号</span></div></div></td></tr>`
       if(!groupList.length) return `<tr><td colspan="8"><div class="empty">${ICONS.off}<div>${emptyMsg}</div></div></td></tr>`
@@ -1707,8 +1690,8 @@ function render(s){
             :'<span class="faint">—</span>'
           const rowKey=`${a.self_id}:${a.protocol_id}`
           const canSelect=a.online&&isAndroid
-          const checkCell=`<td class="c-check"><input type="checkbox" class="rowCheck" data-key="${rowKey}" ${selected.has(rowKey)?'checked':''} ${canSelect?'':'disabled'} title="${canSelect?'选择推送':'离线或非安卓协议不可选'}"></td>`
-          const accountCell=idx===0?`<td rowspan="${insts.length}"><div class="who" data-self="${g.self_id}" title="点击查看账号详情">
+          const checkCell=`<td class="c-check"><input type="checkbox" class="rowCheck" aria-label="选择 ${esc(g.nickname||String(g.self_id))} 协议 ${a.protocol_id}" data-key="${rowKey}" ${selected.has(rowKey)?'checked':''} ${canSelect?'':'disabled'} title="${canSelect?'选择推送':'离线或非安卓协议不可选'}"></td>`
+          const accountCell=idx===0?`<td rowspan="${insts.length}"><div class="who" data-instances="${insts.length}" data-self="${g.self_id}" title="点击查看账号详情">
               <div class="avatar">${esc((g.nickname||String(g.self_id)).slice(0,1).toUpperCase())}</div>
               <div><div class="nick" title="${esc(g.nickname||'')}">${esc(g.nickname||'未命名')} <span class="agg"><span class="pill ${onlineN?'g':'n'}">${onlineN}/${insts.length} 在线</span></span></div>
               <div class="qq qq-copy" data-qq="${g.self_id}" title="点击复制 QQ">${g.self_id}</div>
