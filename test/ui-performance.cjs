@@ -1,10 +1,10 @@
 const fs=require('node:fs'),http=require('node:http'),path=require('node:path'),assert=require('node:assert/strict');
 const {chromium}=require('playwright');
-const repo=path.resolve(__dirname,'..'),out=process.env.QQFARM_PERF_OUTPUT||path.join(repo,'../../work/perf-v384');
+const repo=path.resolve(__dirname,'..'),out=process.env.QQFARM_PERF_OUTPUT||path.join(repo,'../../work/perf-v385');
 const native=process.env.QQFARM_UI_NATIVE_HTML;if(!native||!fs.existsSync(native))throw Error('Capture the compiled admin HTML through ipc-host.mjs first');
 const baseline=process.env.QQFARM_PERF_BASELINE==='1';fs.mkdirSync(out,{recursive:true});
 const now=Date.now(),primary={label:'主面板',baseUrl:'http://primary.example.test',mode:'token',hasToken:true,hasAuth:true},backup={label:'备用面板',baseUrl:'http://backup.example.test',mode:'code',hasCode:true,hasAuth:true};
-const state={version:'3.8.4',ipc_ready:true,instance_id:'mock-ui',data_path:'/data',now,config:{enabled:true,pushOnLogin:true,refreshMinutes:0,staleHours:12,autoRepair:true,repairMinutes:30,alertFails:3,webhook:'',panels:[primary,backup],activePanel:0},accounts:Array.from({length:8},(_,i)=>({self_id:10001+i,protocol_id:i===0?0:i,nickname:['春日农场','晚风牧场','小麦计划'][i]||`农场账号${i+1}`,remark:'',online:i<6,platform:'android',level:20+i,friend_count:30,group_count:3,code_age_ms:i===2?null:3600000})),panels:[{...primary,ok:true,ms:36,checkedAt:now,accounts:[{uin:'10001',running:true,hasCode:true}]},{...backup,ok:false,authBlocked:true,error:'凭据失效',accounts:[],checkedAt:now}],routing:{groups:{日常:[primary.baseUrl]},accounts:{'10001:0':{group:'日常',paused:false,targets:[]}}},sources:{accountsAt:now,accountsStale:false},stats:{todayOk:222,todayFail:7,todaySkipped:9,todayAttempts:238,definition:'按执行次数累计'},tasks:[{id:'failed-1',self_id:10001,protocol_id:0,panel:'备用面板',panel_url:backup.baseUrl,source:'manual',status:'failed',stage:'请检查凭据',attempt:1,max_attempts:4,updated_at:now,error:'认证失败'},{id:'waiting-1',self_id:10003,protocol_id:2,panel:'主面板',source:'manual',status:'retry_wait',stage:'等待重试',attempt:1,max_attempts:4,updated_at:now,next_at:now+30000}],history:[],schedule:{},retries:[]};
+const state={version:'3.8.5',ipc_ready:true,instance_id:'mock-ui',data_path:'/data',now,config:{enabled:true,pushOnLogin:true,refreshMinutes:0,staleHours:12,autoRepair:true,repairMinutes:30,alertFails:3,webhook:'',panels:[primary,backup],activePanel:0},accounts:Array.from({length:8},(_,i)=>({self_id:10001+i,protocol_id:i===0?0:i,nickname:['春日农场','晚风牧场','小麦计划'][i]||`农场账号${i+1}`,remark:'',online:i<6,platform:'android',level:20+i,friend_count:30,group_count:3,code_age_ms:i===2?null:3600000})),panels:[{...primary,ok:true,ms:36,checkedAt:now,accounts:[{uin:'10001',running:true,hasCode:true}]},{...backup,ok:false,authBlocked:true,error:'凭据失效',accounts:[],checkedAt:now}],routing:{groups:{日常:[primary.baseUrl]},accounts:{'10001:0':{group:'日常',paused:false,targets:[]}}},sources:{accountsAt:now,accountsStale:false},stats:{todayOk:222,todayFail:7,todaySkipped:9,todayAttempts:238,definition:'按执行次数累计'},tasks:[{id:'failed-1',self_id:10001,protocol_id:0,panel:'备用面板',panel_url:backup.baseUrl,source:'manual',status:'failed',stage:'请检查凭据',attempt:1,max_attempts:4,updated_at:now,error:'认证失败'},{id:'waiting-1',self_id:10003,protocol_id:2,panel:'主面板',source:'manual',status:'retry_wait',stage:'等待重试',attempt:1,max_attempts:4,updated_at:now,next_at:now+30000}],history:[],schedule:{},retries:[]};
 const count=Number(process.env.QQFARM_PERF_ACCOUNTS)||200,delay=200;
 state.accounts=Array.from({length:count},(_,i)=>({...state.accounts[0],self_id:10001+i,protocol_id:i%4,nickname:`农场账号${i+1}`,online:true}));
 let server,browser;const requests=[],errors=[];
@@ -28,7 +28,7 @@ let server,browser;const requests=[],errors=[];
   return{accountReadyMs:Math.round(ready),firstContentfulPaintMs:performance.getEntriesByName('first-contentful-paint')[0]?.startTime||null,refreshRenderMedianMs:Number(renders[3].toFixed(2)),initialPolicyRows:document.querySelectorAll('.policy-row').length,initialTaskRows:document.querySelectorAll('.task-item').length,hiddenAccountCards:document.querySelectorAll('#accountCards .acc-card').length,accountRowsReused:firstRow===document.querySelector('#accounts tr'),domNodes:document.querySelectorAll('*').length};
  });
  const initialRequests=requests.filter(x=>['/','/enhancements.css','/enhancements.js','/api/state'].includes(x));
- if(!baseline){assert.equal(initialRequests.length,2,'Initial page must use one HTML request and one shared state request');assert.equal(metrics.initialPolicyRows,0,'Closed routing editor should not build account forms');assert.equal(metrics.hiddenAccountCards,0,'Desktop should not build hidden mobile cards');assert(metrics.accountRowsReused,'Unchanged refresh should preserve account DOM')}
+ if(!baseline){assert.equal(initialRequests.length,2,'Initial page must use one HTML request and one shared state request');assert.equal(metrics.initialPolicyRows,0,'Closed routing editor should not build account forms');assert.equal(metrics.hiddenAccountCards,0,'Desktop should not build hidden mobile cards');assert(metrics.accountRowsReused,'Unchanged refresh should preserve account DOM');assert.equal(await p.locator('#tabCntActivity').textContent(),'1 待处理');assert.equal(await p.locator('#openTasks').count(),1)}
  await p.locator('#routingDetails summary').click();await p.waitForFunction(n=>document.querySelectorAll('.policy-row').length===n,count);
  if(!baseline){
   await p.locator('#accounts .rowCheck').first().check();
@@ -37,6 +37,12 @@ let server,browser;const requests=[],errors=[];
   assert(await p.locator('#accountCards .rowCheck[data-key="'+key+'"]').isChecked());
   await p.setViewportSize({width:1440,height:1000});await p.waitForFunction(()=>!accountMedia.matches&&document.querySelector('#accounts .rowCheck'));
   assert(await p.locator('#accounts .rowCheck[data-key="'+key+'"]').isChecked());
+ }
+ if(!baseline){
+  await p.locator('#tab-panels').click();assert(await p.locator('#openTasks').isVisible());
+  const history=p.waitForResponse(r=>new URL(r.url()).pathname==='/api/history');
+  await p.locator('#openTasks').click();await history;assert(await p.locator('#taskCenter').isVisible());assert.equal(await p.locator('.task-item').count(),1);
+  await p.locator('#tab-accounts').click();
  }
  assert.deepEqual(errors,[]);
  const result={passed:true,mode:baseline?'baseline':'optimized',accounts:count,simulatedRequestDelayMs:delay,initialRequests,...metrics,routingOnOpen:true,errors};

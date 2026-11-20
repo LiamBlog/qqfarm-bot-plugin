@@ -41,7 +41,7 @@ function renderEnhancements(s){
  $('targetHint').textContent=`默认面板：${panels[s.config?.activePanel||0]?.label||'尚未配置'}`;
  document.querySelector('.stat[data-stat="activity"]').title=s.stats?.definition||'查看今日推送记录';syncFilterSummary();
  document.querySelectorAll('#accounts .btnPush,#accountCards .btnPush').forEach(b=>{b.title='按上方推送目标创建任务'});
- if(document.body.dataset.tab==='activity')renderTasks(s);if(!routingDirty)renderRouting(s);
+ if(document.body.dataset.tab==='activity')renderTasks(s);else renderTaskSummary(s);if(!routingDirty)renderRouting(s);
  if(document.body.dataset.tab==='activity'&&Date.now()-lastHistoryRefresh>10000)refreshHistory();
  syncDisabledSettings();
 }
@@ -54,11 +54,17 @@ async function queuePush(ids,override=$('pushTarget')?.value||'route'){
  if(!confirm(`确认推送 ${accounts.length} 个账号实例、共 ${n} 项任务？\n${preview}${routes.length>8?'\n…其余账号按所选路由执行':''}\nCode 更新或补启动可能重启农场会话。已发出的远端操作无法撤销。`))return;
  const urls=override==='route'?[]:override==='all'?[...names.keys()]:[override];try{const j=await api('api/tasks',{ids:accounts.map(keyOf),panel_urls:urls});toast(`已提交 ${j.ids.length} 项任务，可在任务中心查看`);if(STATE){STATE.tasks=j.tasks;renderTasks(STATE)};await load()}catch(e){toast(e.message,false)}
 }
-function renderTasks(s){
+function renderTaskSummary(s){
  const tasks=s.tasks||[],active=tasks.filter(t=>['queued','running','retry_wait'].includes(t.status)),failed=tasks.filter(t=>['failed','interrupted'].includes(t.status));$('taskCount').textContent=active.length;$('tabCntActivity').textContent=active.length?`${active.length} 待处理`:tasks.length;$('taskSummary').textContent=`${active.length} 进行中 · ${failed.length} 失败或中断 · ${tasks.length} 项（最多保留 1,000 项）`;$('retryFailed').disabled=!failed.length;
+
+ $('retryHint').innerHTML=active.length?`<button class="mini-btn" id="openTasks">${active.length} 项任务正在处理 · 打开任务中心</button>`:'';set('openTasks',b=>b.onclick=()=>showTab('activity'));
+ return{tasks,active,failed};
+}
+function renderTasks(s){
+ const {tasks,active,failed}=renderTaskSummary(s);
  const f=$('taskFilter').value,list=tasks.filter(t=>f==='all'||(f==='active'?['queued','running','retry_wait']:['failed','interrupted']).includes(t.status));
  const html=list.length?list.slice(0,200).map(t=>`<article class="task-item"><div class="task-top"><strong>${esc(t.nickname||String(t.self_id))} <span class="faint">${esc(String(t.self_id))} #${t.protocol_id}</span></strong><span class="pill ${t.status==='failed'||t.status==='interrupted'?'r':t.status==='succeeded'?'g':'n'}">${taskLabels[t.status]||esc(t.status)}</span></div><div>→ ${esc(t.panel)} <span class="faint">${t.source==='automatic'?'自动':'手动'} · 尝试 ${t.attempt}/${t.max_attempts}</span></div><div class="task-stage"><progress max="2" value="${t.status==='running'?1:['succeeded','skipped'].includes(t.status)?2:0}" aria-label="${esc(t.stage)}"></progress><span>${esc(t.stage)}</span></div>${t.next_at?`<div class="faint">重试时间 ${dateText(t.next_at)}</div>`:''}${t.error?`<div class="task-error">${esc(t.error)}</div>`:''}<div class="task-actions"><time class="faint">${dateText(t.updated_at)}</time>${['queued','retry_wait'].includes(t.status)?`<button class="mini-btn" data-cancel-task="${esc(t.id)}">取消待执行</button>`:''}${['failed','interrupted'].includes(t.status)?`<button class="mini-btn" data-retry-task="${esc(t.id)}">重试此项</button>`:''}</div></article>`).join(''):'<div class="empty">当前筛选没有任务</div>';
- setHTML('taskList',html);$('retryHint').innerHTML=active.length?`<button class="mini-btn" id="openTasks">${active.length} 项任务正在处理 · 打开任务中心</button>`:'';set('openTasks',b=>b.onclick=()=>showTab('activity'));
+ setHTML('taskList',html);
 }
 function routingMark(){routingRevision++;routingDirty=true;$('routingStatus').textContent='有未保存的分组或路由更改';$('saveRouting').disabled=routingSaving}
 function selectedValues(el){return[...el.selectedOptions].map(o=>o.value)}
