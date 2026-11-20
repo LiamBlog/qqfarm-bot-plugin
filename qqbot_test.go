@@ -722,3 +722,25 @@ func TestQQCommandToFarmTaskAndResult(t *testing.T) {
 		t.Fatal("task did not complete", tasks)
 	}
 }
+func TestQQFastTaskCompletionFollowsQueuedAcknowledgement(t *testing.T) {
+	q := qqTest(t)
+	b := qqFixtureBinding()
+	q.cfg.Bindings = []QQBinding{b}
+	task := &PushTask{ID: "instant", SelfID: 10001, ProtocolID: 0, PanelURL: "http://a.test", Status: "succeeded"}
+	q.bridge.ops.tasks = []*PushTask{task}
+	reply := QQReply{Kind: b.Kind, Target: b.Target, User: b.User, MessageID: "instant-command", At: time.Now(), Seq: 1}
+	q.commandMu.Lock()
+	finished := make(chan struct{})
+	go func() { q.TaskFinished(*task); close(finished) }()
+	q.queue(qqMessage{BindingID: b.ID, Text: "已排队", Category: "reply", Reply: &reply})
+	q.trackTaskLocked(task.ID, b.ID, reply)
+	q.commandMu.Unlock()
+	<-finished
+	if len(q.outputs) != 2 {
+		t.Fatal("missing or duplicated fast task feedback", len(q.outputs))
+	}
+	first, second := <-q.outputs, <-q.outputs
+	if first.Category != "reply" || first.Reply == nil || first.Reply.Seq != 1 || second.Category != "task" || second.Reply == nil || second.Reply.Seq != 2 {
+		t.Fatal("task result raced queued acknowledgement", first, second)
+	}
+}

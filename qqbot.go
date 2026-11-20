@@ -73,6 +73,7 @@ type QQBot struct {
 	client                  *http.Client
 	mu                      sync.Mutex
 	opMu                    sync.RWMutex
+	commandMu               sync.Mutex
 	lifecycle               sync.Mutex
 	cfg                     QQBotConfig
 	state, lastError        string
@@ -626,6 +627,11 @@ func (q *QQBot) NotifyOffline(self, proto int64) {
 	}
 }
 func (q *QQBot) TrackTask(id, binding string, reply QQReply) {
+	q.commandMu.Lock()
+	defer q.commandMu.Unlock()
+	q.trackTaskLocked(id, binding, reply)
+}
+func (q *QQBot) trackTaskLocked(id, binding string, reply QQReply) {
 	q.mu.Lock()
 	q.tracked[id] = struct {
 		Binding string
@@ -634,12 +640,17 @@ func (q *QQBot) TrackTask(id, binding string, reply QQReply) {
 	q.mu.Unlock()
 	for _, t := range q.bridge.ops.Tasks() {
 		if t.ID == id && !taskActive(t.Status) {
-			q.TaskFinished(t)
+			q.taskFinishedLocked(t)
 			return
 		}
 	}
 }
 func (q *QQBot) TaskFinished(t PushTask) {
+	q.commandMu.Lock()
+	defer q.commandMu.Unlock()
+	q.taskFinishedLocked(t)
+}
+func (q *QQBot) taskFinishedLocked(t PushTask) {
 	if taskActive(t.Status) {
 		return
 	}

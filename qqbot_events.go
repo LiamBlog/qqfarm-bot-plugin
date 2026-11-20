@@ -141,12 +141,14 @@ func (q *QQBot) handleEvent(e qqEvent) {
 	if !q.claimCooldown("command:"+b.ID, 2) {
 		return
 	}
+	q.commandMu.Lock()
+	defer q.commandMu.Unlock()
 	text, ids := q.command(b, parts)
 	if text != "" {
 		q.queue(qqMessage{BindingID: b.ID, Text: text, Category: "reply", Reply: &reply})
 	}
 	for _, id := range ids {
-		q.TrackTask(id, b.ID, reply)
+		q.trackTaskLocked(id, b.ID, reply)
 	}
 }
 func (q *QQBot) consumeBinding(code string, r QQReply) (QQBinding, error) {
