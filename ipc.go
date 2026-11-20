@@ -24,7 +24,7 @@ const (
 	ipcMaxFrame = 16 << 20
 )
 
-var version = "3.8.2"
+var version = "3.8.3"
 var instanceIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
 // connection 框架写入的受控连接文件。

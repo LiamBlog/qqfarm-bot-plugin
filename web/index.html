@@ -1578,6 +1578,7 @@ function renderDonut(online,total){
 function render(s){
   try {
     STATE=s
+    syncAccountInputs(s)
     set('ver', e => e.textContent='v'+s.version)
     set('fInstanceId', e => e.textContent=s.instance_id||'–')
     set('fDataPath', e => e.textContent=s.data_path||'–')
@@ -1664,7 +1665,7 @@ function render(s){
     }else if(accFilter==='pending'){
       groupList=groupList.filter(g=>syncStatus(g,s).pending)
     }
-    if($('groupFilter')?.value) groupList=groupList.filter(g=>g.instances.some(a=>s.routing?.accounts?.[`${a.self_id}:${a.protocol_id}`]?.group===$('groupFilter').value))
+    if($('groupFilter')?.value) groupList=groupList.map(g=>({...g,instances:g.instances.filter(a=>s.routing?.accounts?.[`${a.self_id}:${a.protocol_id}`]?.group===$('groupFilter').value)})).filter(g=>g.instances.length)
     syncSortHeaders()
     const emptyTitle=accFilter==='online'
       ? (kw?`没有匹配「${esc(kw)}」的在线账号`:'当前没有在线账号')

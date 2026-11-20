@@ -1,5 +1,6 @@
 /* 3.8 control flows: keep the original view and native IPC transport. */
 let settingsDirty=false, routingDirty=false, routingDraft=null, lastStateSuccess=0, historyOffset=0, historyRequest=0, lastHistoryRefresh=0;
+let settingsRevision=0,routingRevision=0,settingsSaving=false,routingSaving=false;
 const taskLabels={queued:'排队中',running:'执行中',retry_wait:'等待重试',succeeded:'成功',skipped:'已跳过',failed:'失败',cancelled:'已取消',interrupted:'已中断'};
 const keyOf=a=>`${a.self_id}:${a.protocol_id}`;
 const dateText=t=>t?new Date(t).toLocaleString('zh-CN',{hour12:false}):'尚无';
@@ -24,12 +25,19 @@ function addUI(){
 function markFreshness(ok,s,error=''){
  const box=$('freshness'),text=$('freshnessText');if(ok){lastStateSuccess=Date.now();box.classList.toggle('stale',!!s?.sources?.accountsStale);text.textContent=s?.sources?.accountsStale?`账号数据未更新：${s.sources.accountsError||'正在等待框架'}；展示最近缓存。最近成功读取账号 ${dateText(s.sources.accountsAt)}`:`数据已刷新 ${dateText(lastStateSuccess)}`;}else{box.classList.add('stale');text.textContent=`刷新失败：${error}。当前显示缓存；最近成功刷新 ${dateText(lastStateSuccess)}，15 秒后重试。`;set('farmState',e=>e.textContent='状态未更新');}
 }
-function setSelectOptions(id,html){const el=$(id);if(!el||document.activeElement===el)return;const val=el.value;if(el.dataset.options===html)return;el.innerHTML=html;el.dataset.options=html;if([...el.options].some(o=>o.value===val))el.value=val;}
+function setSelectOptions(id,html,force=false){const el=$(id);if(!el||(!force&&document.activeElement===el))return;const val=el.value;if(el.dataset.options===html)return;el.innerHTML=html;el.dataset.options=html;if([...el.options].some(o=>o.value===val))el.value=val;}
 function panelOptions(s){return(s.config?.panels||[]).map(p=>`<option value="${esc(p.baseUrl)}">${esc(p.label)}</option>`).join('')}
+function syncAccountInputs(s){
+ const groups=s.routing?.groups||{},current=$('groupFilter').value;
+ setSelectOptions('groupFilter','<option value="">全部分组</option>'+Object.keys(groups).sort().map(g=>`<option>${esc(g)}</option>`).join(''),!!current&&!Object.hasOwn(groups,current));
+ // Preserve selections across filters, but never retain unavailable instances.
+ const valid=new Set((s.accounts||[]).filter(a=>a.online&&(a.platform||'').toLowerCase().includes('android')).map(keyOf));
+ for(const id of selected)if(!valid.has(id))selected.delete(id);
+}
 function renderEnhancements(s){
  const panels=s.config?.panels||[];
  $('btnQueueAll').textContent=$('groupFilter').value?'推送此分组':'推送在线账号';
- setSelectOptions('pushTarget','<option value="route">按账号 / 分组路由</option><option value="all">推送到全部面板</option>'+panelOptions(s));setSelectOptions('histPanel','<option value="">全部面板</option>'+panelOptions(s));setSelectOptions('groupFilter','<option value="">全部分组</option>'+Object.keys(s.routing?.groups||{}).sort().map(g=>`<option>${esc(g)}</option>`).join(''));
+ setSelectOptions('pushTarget','<option value="route">按账号 / 分组路由</option><option value="all">推送到全部面板</option>'+panelOptions(s));setSelectOptions('histPanel','<option value="">全部面板</option>'+panelOptions(s));
  $('targetHint').textContent=`默认面板：${panels[s.config?.activePanel||0]?.label||'尚未配置'}`;
  document.querySelector('.stat[data-stat="activity"]').title=s.stats?.definition||'查看今日推送记录';syncFilterSummary();
  document.querySelectorAll('#accounts .btnPush,#accountCards .btnPush').forEach(b=>{b.title='按上方推送目标创建任务'});
@@ -52,7 +60,7 @@ function renderTasks(s){
  const html=list.length?list.slice(0,200).map(t=>`<article class="task-item"><div class="task-top"><strong>${esc(t.nickname||String(t.self_id))} <span class="faint">${esc(String(t.self_id))} #${t.protocol_id}</span></strong><span class="pill ${t.status==='failed'||t.status==='interrupted'?'r':t.status==='succeeded'?'g':'n'}">${taskLabels[t.status]||esc(t.status)}</span></div><div>→ ${esc(t.panel)} <span class="faint">${t.source==='automatic'?'自动':'手动'} · 尝试 ${t.attempt}/${t.max_attempts}</span></div><div class="task-stage"><progress max="2" value="${t.status==='running'?1:['succeeded','skipped'].includes(t.status)?2:0}" aria-label="${esc(t.stage)}"></progress><span>${esc(t.stage)}</span></div>${t.next_at?`<div class="faint">重试时间 ${dateText(t.next_at)}</div>`:''}${t.error?`<div class="task-error">${esc(t.error)}</div>`:''}<div class="task-actions"><time class="faint">${dateText(t.updated_at)}</time>${['queued','retry_wait'].includes(t.status)?`<button class="mini-btn" data-cancel-task="${esc(t.id)}">取消待执行</button>`:''}${['failed','interrupted'].includes(t.status)?`<button class="mini-btn" data-retry-task="${esc(t.id)}">重试此项</button>`:''}</div></article>`).join(''):'<div class="empty">当前筛选没有任务</div>';
  setHTML('taskList',html);$('retryHint').innerHTML=active.length?`<button class="mini-btn" id="openTasks">${active.length} 项任务正在处理 · 打开任务中心</button>`:'';set('openTasks',b=>b.onclick=()=>showTab('activity'));
 }
-function routingMark(){routingDirty=true;$('routingStatus').textContent='有未保存的分组或路由更改';$('saveRouting').disabled=false}
+function routingMark(){routingRevision++;routingDirty=true;$('routingStatus').textContent='有未保存的分组或路由更改';$('saveRouting').disabled=routingSaving}
 function selectedValues(el){return[...el.selectedOptions].map(o=>o.value)}
 function renderRouting(s,force=false){if(routingDirty&&!force)return;routingDraft=JSON.parse(JSON.stringify(s.routing||{accounts:{},groups:{}}));routingDraft.accounts||={};routingDraft.groups||={};const opts=panelOptions(s);
  $('groupRoutes').innerHTML=Object.entries(routingDraft.groups).map(([g,targets])=>`<div class="group-route"><strong>${esc(g)}</strong><label>分组目标<select multiple size="2" data-group-target="${esc(g)}">${opts}</select></label><button class="mini-btn danger" data-delete-group="${esc(g)}">删除分组</button></div>`).join('')||'<p class="faint">暂无分组，未指定路由时使用默认面板。</p>';
@@ -97,14 +105,32 @@ function installHandlers(){
  document.addEventListener('click',e=>{const button=e.target.closest('[data-dwpush],#dwBroadcast');if(!button)return;e.preventDefault();e.stopImmediatePropagation();const self=String($('drawer').dataset.self||'');const g=collectGroups(STATE).find(g=>String(g.self_id)===self);const a=g?.instances.find(a=>a.online);if(!a)return toast('账号不在线',false);queuePush([keyOf(a)],button.id==='dwBroadcast'?'all':STATE.config.panels[Number(button.dataset.dwpush)]?.baseUrl)},true);
  $('taskFilter').onchange=()=>STATE&&renderTasks(STATE);$('taskList').onclick=async e=>{const c=e.target.closest('[data-cancel-task]'),r=e.target.closest('[data-retry-task]');if(!c&&!r)return;const b=c||r;b.disabled=true;try{await api(c?'api/tasks/cancel':'api/tasks/retry',{id:c?c.dataset.cancelTask:r.dataset.retryTask});await load()}catch(e){toast(e.message,false)}finally{b.disabled=false}};
  $('retryFailed').onclick=async()=>{const failed=(STATE?.tasks||[]).filter(t=>['failed','interrupted'].includes(t.status));if(!failed.length||!confirm(`仅重试 ${failed.length} 项失败 / 中断任务？已成功项不会重放。中断任务请先核实面板状态。`))return;try{for(const t of failed)await api('api/tasks/retry',{id:t.id});toast('失败任务已重新排队');load()}catch(e){toast(e.message,false)}};
- $('cfg').addEventListener('input',()=>{settingsDirty=true;$('saveRow').classList.add('dirty-on');syncDisabledSettings()});$('cfg').addEventListener('change',()=>{settingsDirty=true;$('saveRow').classList.add('dirty-on');syncDisabledSettings()});
- $('btnSave').onclick=async()=>{const b=$('btnSave');b.disabled=true;try{const j=await api('api/config',{farm:{enabled:$('f_enabled').checked,pushOnLogin:$('f_pushOnLogin').checked,refreshMinutes:Number($('f_refreshMinutes').value)||0,staleHours:Number($('f_staleHours').value)||0,autoRepair:$('f_autoRepair').checked,repairMinutes:Number($('f_repairMinutes').value)||30,alertFails:Number($('f_alertFails').value)||3,webhook:$('f_webhook').value.trim()}});settingsDirty=false;$('saveRow').classList.remove('dirty-on');if(j.state)render(j.state);toast('设置已保存，立即生效')}catch(e){toast('保存失败：'+e.message,false)}finally{b.disabled=false}};
+ $('cfg').addEventListener('input',()=>{settingsRevision++;settingsDirty=true;$('saveRow').classList.add('dirty-on');syncDisabledSettings()});$('cfg').addEventListener('change',()=>{settingsRevision++;settingsDirty=true;$('saveRow').classList.add('dirty-on');syncDisabledSettings()});
+ $('btnSave').onclick=async()=>{
+  if(settingsSaving)return;settingsSaving=true;
+  const b=$('btnSave'),revision=settingsRevision;b.disabled=true;
+  try{
+   const j=await api('api/config',{farm:{enabled:$('f_enabled').checked,pushOnLogin:$('f_pushOnLogin').checked,refreshMinutes:Number($('f_refreshMinutes').value)||0,staleHours:Number($('f_staleHours').value)||0,autoRepair:$('f_autoRepair').checked,repairMinutes:Number($('f_repairMinutes').value)||30,alertFails:Number($('f_alertFails').value)||3,webhook:$('f_webhook').value.trim()}});
+   if(revision===settingsRevision){settingsDirty=false;$('saveRow').classList.remove('dirty-on')}
+   if(j.state)render(j.state);
+   toast(settingsDirty?'本次设置已保存，保存期间的新修改尚未保存':'设置已保存，立即生效');
+  }catch(e){toast('保存失败：'+e.message,false)}finally{settingsSaving=false;b.disabled=false}
+ };
  window.addEventListener('beforeunload',e=>{if(settingsDirty||routingDirty){e.preventDefault();e.returnValue=''}});
  $('addGroup').onclick=()=>{const name=$('newGroupName').value.trim();if(!name||[...name].length>40)return toast('分组名称需为 1–40 个字符',false);if(Object.hasOwn(routingDraft.groups,name))return toast('分组已存在',false);routingDraft.groups[name]=[];const draft=routingDraft;renderRouting({...STATE,routing:draft},true);routingMark();$('newGroupName').value=''};
  $('groupRoutes').onchange=e=>{const el=e.target.closest('[data-group-target]');if(el){routingDraft.groups[el.dataset.groupTarget]=selectedValues(el);routingMark()}};
  $('groupRoutes').onclick=e=>{const b=e.target.closest('[data-delete-group]');if(!b)return;const g=b.dataset.deleteGroup;if(!confirm(`删除分组「${g}」？其中账号改为未分组。`))return;delete routingDraft.groups[g];for(const p of Object.values(routingDraft.accounts))if(p.group===g)p.group='';const draft=routingDraft;renderRouting({...STATE,routing:draft},true);routingMark()};
  $('accountPolicies').onchange=e=>{const row=e.target.closest('[data-policy-key]');if(!row)return;routingDraft.accounts[row.dataset.policyKey]={group:row.querySelector('[data-policy-group]').value,targets:selectedValues(row.querySelector('[data-policy-targets]')),paused:row.querySelector('[data-policy-paused]').checked};routingMark()};
- $('saveRouting').onclick=async()=>{const b=$('saveRouting');b.disabled=true;try{const j=await api('api/routing',{routing:routingDraft});routingDirty=false;STATE.routing=j.routing;render(STATE);toast('分组与路由已保存')}catch(e){toast(e.message,false);b.disabled=false}};
+ $('saveRouting').onclick=async()=>{
+  if(routingSaving)return;routingSaving=true;
+  const b=$('saveRouting'),revision=routingRevision;b.disabled=true;
+  try{
+   const j=await api('api/routing',{routing:routingDraft});
+   if(revision===routingRevision)routingDirty=false;
+   STATE.routing=j.routing;render(STATE);
+   toast(routingDirty?'本次路由已保存，保存期间的新修改尚未保存':'分组与路由已保存');
+  }catch(e){toast(e.message,false)}finally{routingSaving=false;b.disabled=!routingDirty}
+ };
  $('historyQuery').onsubmit=e=>{e.preventDefault();historyOffset=0;refreshHistory()};$('histPrev').onclick=()=>{historyOffset=Math.max(0,historyOffset-50);refreshHistory()};$('histNext').onclick=()=>{historyOffset+=50;refreshHistory()};$('exportHistory').onclick=async()=>{try{download(await api('api/history/export?'+historyParams()),'qqfarm-history-redacted.json');toast('已导出当前筛选下的脱敏历史')}catch(e){toast(e.message,false)}};$('clearHistory').onclick=async()=>{if(!confirm('清空全部历史记录？今日累计统计将保留。'))return;try{await api('api/history_clear',{});historyOffset=0;refreshHistory();load()}catch(e){toast(e.message,false)}};
  $('setupStart').onclick=wizardOpen;$('btnAddPanel').onclick=wizardOpen;$('btnGoPanels').onclick=()=>{showTab('panels');wizardOpen()};$('wizardClose').onclick=wizardClose;$('setupWizard').addEventListener('cancel',()=>{$('wSecret').value='';wizardChecked=null});$('wizardBack').onclick=()=>{wizardStep=Math.max(0,wizardStep-1);wizardShow()};
  $('wizardForm').addEventListener('input',()=>{wizardChecked=null;$('wizardProbeResult').textContent='';});$('wMode').onchange=wizardShow;
