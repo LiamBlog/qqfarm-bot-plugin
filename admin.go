@@ -29,15 +29,11 @@ type Admin struct {
 	bots      []Bot
 	panelAt   time.Time
 	panels    []map[string]any
-	pageBytes []byte
 }
 
 func newAdmin(cfg *Config, bridge *Bridge, dataDir string) *Admin {
-	page, err := webFS.ReadFile("web/index.html")
-	if err != nil {
-		panic("管理端 HTML 缺失（embed 资源未打进去）：" + err.Error())
-	}
-	a := &Admin{cfg: cfg, bridge: bridge, dataDir: dataDir, pageBytes: page}
+	prepareAdminAssets()
+	a := &Admin{cfg: cfg, bridge: bridge, dataDir: dataDir}
 	a.token = readTokenFile()
 	a.origin = strings.TrimSpace(getenv("MENGKA_PLUGIN_ADMIN_ORIGIN", ""))
 	return a
@@ -254,10 +250,7 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 		return
 	}
 
-	if r.URL.Path == "/" || r.URL.Path == "/index.html" {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		_, _ = w.Write(a.pageBytes)
+	if a.serveAdminAsset(w, r) {
 		return
 	}
 

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 )
 
@@ -17,22 +16,6 @@ func (a *Admin) sourceStatus() map[string]any {
 
 // serveOperations is called only after the existing managed-token/origin gate.
 func (a *Admin) serveOperations(w http.ResponseWriter, r *http.Request) bool {
-	if r.URL.Path == "/enhancements.js" || r.URL.Path == "/enhancements.css" {
-		name := strings.TrimPrefix(r.URL.Path, "/")
-		data, err := webFS.ReadFile("web/" + name)
-		if err != nil {
-			http.NotFound(w, r)
-			return true
-		}
-		mime := "text/javascript; charset=utf-8"
-		if strings.HasSuffix(name, ".css") {
-			mime = "text/css; charset=utf-8"
-		}
-		w.Header().Set("Content-Type", mime)
-		w.Header().Set("Cache-Control", "no-store")
-		_, _ = w.Write(data)
-		return true
-	}
 	known := map[string]bool{"/api/tasks": true, "/api/tasks/cancel": true, "/api/tasks/retry": true, "/api/routing": true, "/api/history": true, "/api/history/export": true, "/api/setup/probe": true}
 	if !known[r.URL.Path] {
 		return false

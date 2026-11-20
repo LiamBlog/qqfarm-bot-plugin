@@ -30,6 +30,8 @@ jobs:
         with:
           node-version: "20"
       - name: 联调（模拟框架宿主 + 面板）
+        env:
+          QQFARM_UI_NATIVE_HTML: test-results/ui/native-admin.html
         run: node test/ipc-host.mjs
       - name: 安装浏览器回归测试依赖
         run: |
@@ -40,9 +42,12 @@ jobs:
           QQFARM_BROWSER_CHANNEL: chromium
           QQFARM_UI_OUTPUT: test-results/ui
           QQFARM_BUG_OUTPUT: test-results/ui-bugs
+          QQFARM_UI_NATIVE_HTML: test-results/ui/native-admin.html
+          QQFARM_PERF_OUTPUT: test-results/ui-performance
         run: |
           node test/ui-regression.cjs
           node test/ui-bugs.cjs
+          node test/ui-performance.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -50,6 +55,7 @@ jobs:
           path: |
             test-results/ui
             test-results/ui-bugs
+            test-results/ui-performance
           if-no-files-found: ignore
 
   package:

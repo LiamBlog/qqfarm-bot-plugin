@@ -13,6 +13,13 @@
   document.documentElement.dataset.mode = saved
 })()
 </script>
+<script>
+// Start the first read while the rest of the interface is parsed. Keep failures
+// handled until the normal loading UI is ready to display them.
+window.__adminInitialState=fetch('api/state?h=60',{cache:'no-store',signal:AbortSignal.timeout(20000)})
+ .then(async response=>{if(!response.ok)throw Error('HTTP '+response.status);const data=await response.json();if(data.error)throw Error(data.error);return{data}})
+ .catch(error=>({error:error.message}));
+</script>
 <style>
 /* 3.7.24 样式层重构：由 3.7.23 的 724 条规则实例去重合并为 541 条唯一规则，
    级联敏感对已按分段策略保留相对顺序，渲染结果与旧版逐属性一致。 */
@@ -1037,11 +1044,15 @@ const $ = id => document.getElementById(id)
 /* 安全取值：任何节点缺失都不再抛错，杜绝刷新循环 */
 const set = (id, fn) => { const el = $(id); if (el) fn(el) }
 /* 仅在内容变化时写 DOM：轮询刷新不再整块重建，保留悬停态、滚动位置与行内编辑 */
+const accountHTML = new WeakMap()
 const setHTML = (id, html, after) => {
   const el = $(id); if (!el) return false
-  if (el.innerHTML === html) return false
+  const accountView=id==='accounts'||id==='accountCards'
+  if(accountView&&accountHTML.get(el)===html) return false
+  if (el.innerHTML === html){if(accountView)accountHTML.set(el,html);return false}
   if (el.contains(document.activeElement) && document.activeElement.matches('input,textarea')) return false
   el.innerHTML = html
+  if(accountView)accountHTML.set(el,html)
   if (after) after(el)
   return true
 }
@@ -1073,6 +1084,9 @@ const selected = new Set() // 批量推送选中项：self_id:protocol_id
 let lastCheckIdx = -1 // Shift 区间选择锚点
 let accSort = localStorage.getItem('mengka-acc-sort') || 'online' // 账号排序：online / level / code
 let histFilter = 'all' // 动态流筛选：all / push / account / panel
+const accountMedia=matchMedia('(max-width:1023px)')
+const selectableAccountBoxes=()=>[...document.querySelectorAll((accountMedia.matches?'#accountCards':'#accounts')+' .rowCheck:not(:disabled)')]
+accountMedia.addEventListener('change',()=>{lastCheckIdx=-1;if(STATE)render(STATE)})
 
 /* ---------- 主题 ---------- */
 const THEME_KEY='mengka-admin-theme', THEME_ORDER=['auto','light','dark']
@@ -1167,7 +1181,7 @@ function updateBulk(){
   const bar=$('bulkBar'); if(bar) bar.classList.toggle('show', selected.size>0)
   set('bulkCount', e=>e.textContent='已选 '+selected.size)
   // 以 selected 为唯一数据源，表格与卡片两套复选框保持一致
-  const boxes=[...document.querySelectorAll('.rowCheck:not(:disabled)')]
+  const boxes=selectableAccountBoxes()
   boxes.forEach(b=>{ b.checked=selected.has(b.dataset.key) })
   const keys=new Set(boxes.map(b=>b.dataset.key))
   const all=keys.size>0 && [...keys].every(k=>selected.has(k))
@@ -1236,14 +1250,14 @@ set('btnLogs', b=>b.onclick=async ()=>{
   }catch(e){ toast('导出日志失败：'+e.message,false) }
 })
 set('checkAll', cb=>cb.onchange=()=>{
-  document.querySelectorAll('.rowCheck:not(:disabled)').forEach(c=>{
+  selectableAccountBoxes().forEach(c=>{
     c.checked = cb.checked
     cb.checked ? selected.add(c.dataset.key) : selected.delete(c.dataset.key)
   })
   updateBulk()
 })
 set('checkAllCards', cb=>cb.onchange=()=>{
-  document.querySelectorAll('.rowCheck:not(:disabled)').forEach(c=>{
+  selectableAccountBoxes().forEach(c=>{
     c.checked = cb.checked
     cb.checked ? selected.add(c.dataset.key) : selected.delete(c.dataset.key)
   })
@@ -1673,6 +1687,7 @@ function render(s){
       ? (kw?`没有匹配「${esc(kw)}」的待处理账号`:'当前没有待处理账号')
       : (kw?`没有匹配「${esc(kw)}」的账号`:'当前分组或状态下没有账号')
     const emptyMsg=emptyTitle+'<p class="empty-help">试试其他关键词，或清除状态与分组筛选。</p><button type="button" class="mini-btn" data-reset-account-filters>清除筛选</button>'
+    if(!accountMedia.matches){
     const accHtml=(()=>{
       if(!s.accounts.length) return `<tr><td colspan="8"><div class="empty">${ICONS.off}<div>暂无 Android 账号<br><span class="faint">请在萌卡框架登录手机 / 平板协议账号</span></div></div></td></tr>`
       if(!groupList.length) return `<tr><td colspan="8"><div class="empty">${ICONS.off}<div>${emptyMsg}</div></div></td></tr>`
@@ -1740,8 +1755,10 @@ function render(s){
       })
     }
 
-    /* 手机端卡片列表（与表格同源，≤640px 由 CSS 切换） */
-    renderAccountCards(groupList, s, emptyMsg)
+    }else{setHTML('accounts','')}
+    /* Only build the currently visible account representation. */
+    if(accountMedia.matches)renderAccountCards(groupList,s,emptyMsg)
+    else setHTML('accountCards','')
     updateBulk()
 
     /* 动态流 */
@@ -2119,9 +2136,10 @@ let LOAD_PROMISE=null
 async function load(){
  if(LOAD_PROMISE) return LOAD_PROMISE
  LOAD_PROMISE=(async()=>{try{
-  const res=await fetch('api/state?h='+historyLimit,{signal:AbortSignal.timeout(20000)})
-  if(!res.ok) throw new Error('HTTP '+res.status)
-  const j=await res.json();if(j.error) throw new Error(j.error)
+  let j
+  const initial=window.__adminInitialState;delete window.__adminInitialState
+  if(initial){const result=await initial;if(result.error)throw Error(result.error);j=result.data}
+  else{const res=await fetch('api/state?h='+historyLimit,{cache:'no-store',signal:AbortSignal.timeout(20000)});if(!res.ok)throw Error('HTTP '+res.status);j=await res.json();if(j.error)throw Error(j.error)}
   set('accErr',e=>e.textContent='');render(j);markFreshness(true,j)
  }catch(e){markFreshness(false,null,e.message)}finally{LOAD_PROMISE=null}})()
  return LOAD_PROMISE

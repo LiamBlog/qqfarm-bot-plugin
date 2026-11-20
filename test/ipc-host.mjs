@@ -3,9 +3,9 @@
  * 用法：bash build.sh && node test/ipc-host.mjs
  */
 import { spawn } from 'node:child_process'
-import { mkdtempSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import readline from 'node:readline'
 import http from 'node:http'
@@ -221,6 +221,7 @@ summarize('/api/logs 返回运行日志', logs?.ok === true && Array.isArray(log
 
 const page = await fetch(`${BASE}/`).then(r => r.text()).catch(() => '')
 summarize('管理端页面可访问', page.includes('<html') && page.includes('drawerMask'), `${page.length} 字节`)
+if(process.env.QQFARM_UI_NATIVE_HTML){mkdirSync(dirname(process.env.QQFARM_UI_NATIVE_HTML),{recursive:true});writeFileSync(process.env.QQFARM_UI_NATIVE_HTML,page)}
 
 const cleared = await fetch(`${BASE}/api/history_clear`, { method: 'POST' }).then(r => r.json()).catch(() => null)
 summarize('清空动态流', cleared?.ok === true && cleared.state.history.length === 0, '')
