@@ -44,10 +44,12 @@ jobs:
           QQFARM_BUG_OUTPUT: test-results/ui-bugs
           QQFARM_UI_NATIVE_HTML: test-results/ui/native-admin.html
           QQFARM_PERF_OUTPUT: test-results/ui-performance
+          QQFARM_QQBOT_UI_OUTPUT: test-results/qqbot-ui
         run: |
           node test/ui-regression.cjs
           node test/ui-bugs.cjs
           node test/ui-performance.cjs
+          node test/qqbot-ui.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -56,6 +58,7 @@ jobs:
             test-results/ui
             test-results/ui-bugs
             test-results/ui-performance
+            test-results/qqbot-ui
           if-no-files-found: ignore
 
   package:

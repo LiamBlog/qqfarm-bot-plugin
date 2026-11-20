@@ -254,6 +254,9 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 		return
 	}
 
+	if a.serveQQBot(w, r) {
+		return
+	}
 	if a.serveOperations(w, r) {
 		return
 	}

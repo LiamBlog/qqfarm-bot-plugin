@@ -63,7 +63,7 @@ function renderTaskSummary(s){
 function renderTasks(s){
  const {tasks,active,failed}=renderTaskSummary(s);
  const f=$('taskFilter').value,list=tasks.filter(t=>f==='all'||(f==='active'?['queued','running','retry_wait']:['failed','interrupted']).includes(t.status));
- const html=list.length?list.slice(0,200).map(t=>`<article class="task-item"><div class="task-top"><strong>${esc(t.nickname||String(t.self_id))} <span class="faint">${esc(String(t.self_id))} #${t.protocol_id}</span></strong><span class="pill ${t.status==='failed'||t.status==='interrupted'?'r':t.status==='succeeded'?'g':'n'}">${taskLabels[t.status]||esc(t.status)}</span></div><div>→ ${esc(t.panel)} <span class="faint">${t.source==='automatic'?'自动':'手动'} · 尝试 ${t.attempt}/${t.max_attempts}</span></div><div class="task-stage"><progress max="2" value="${t.status==='running'?1:['succeeded','skipped'].includes(t.status)?2:0}" aria-label="${esc(t.stage)}"></progress><span>${esc(t.stage)}</span></div>${t.next_at?`<div class="faint">重试时间 ${dateText(t.next_at)}</div>`:''}${t.error?`<div class="task-error">${esc(t.error)}</div>`:''}<div class="task-actions"><time class="faint">${dateText(t.updated_at)}</time>${['queued','retry_wait'].includes(t.status)?`<button class="mini-btn" data-cancel-task="${esc(t.id)}">取消待执行</button>`:''}${['failed','interrupted'].includes(t.status)?`<button class="mini-btn" data-retry-task="${esc(t.id)}">重试此项</button>`:''}</div></article>`).join(''):'<div class="empty">当前筛选没有任务</div>';
+ const html=list.length?list.slice(0,200).map(t=>`<article class="task-item"><div class="task-top"><strong>${esc(t.nickname||String(t.self_id))} <span class="faint">${esc(String(t.self_id))} #${t.protocol_id}</span></strong><span class="pill ${t.status==='failed'||t.status==='interrupted'?'r':t.status==='succeeded'?'g':'n'}">${taskLabels[t.status]||esc(t.status)}</span></div><div>→ ${esc(t.panel)} <span class="faint">${t.source==='automatic'?'自动':t.source==='qqbot'?'QQ 机器人':'手动'} · 尝试 ${t.attempt}/${t.max_attempts}</span></div><div class="task-stage"><progress max="2" value="${t.status==='running'?1:['succeeded','skipped'].includes(t.status)?2:0}" aria-label="${esc(t.stage)}"></progress><span>${esc(t.stage)}</span></div>${t.next_at?`<div class="faint">重试时间 ${dateText(t.next_at)}</div>`:''}${t.error?`<div class="task-error">${esc(t.error)}</div>`:''}<div class="task-actions"><time class="faint">${dateText(t.updated_at)}</time>${['queued','retry_wait'].includes(t.status)?`<button class="mini-btn" data-cancel-task="${esc(t.id)}">取消待执行</button>`:''}${['failed','interrupted'].includes(t.status)?`<button class="mini-btn" data-retry-task="${esc(t.id)}">重试此项</button>`:''}</div></article>`).join(''):'<div class="empty">当前筛选没有任务</div>';
  setHTML('taskList',html);
 }
 function routingMark(){routingRevision++;routingDirty=true;$('routingStatus').textContent='有未保存的分组或路由更改';$('saveRouting').disabled=routingSaving}
@@ -151,3 +151,15 @@ function installHandlers(){
  $('wizardForm').onsubmit=async e=>{e.preventDefault();const b=$('wizardNext');try{if(wizardStep===0){const p=wizardCandidate(),u=new URL(p.baseUrl);if(!['http:','https:'].includes(u.protocol)||u.username||u.password||u.search||u.hash)throw Error('请输入有效的 HTTP/HTTPS 面板地址');if((STATE?.config?.panels||[]).some(p=>p.baseUrl===u.href.replace(/\/$/,'')))throw Error('该面板已存在，请在面板卡片中编辑')}if(wizardStep===1){if(!$('wSecret').value.trim())throw Error('请填写凭据');if($('wMode').value==='admin'&&!$('wUser').value.trim())throw Error('请填写管理员用户名')}if(wizardStep===2){if(!wizardChecked)throw Error('请先检测连接并读取账号');const p=wizardCandidate();$('wizardReview').innerHTML=`<p><strong>${esc(p.label||'新面板')}</strong></p><p>${esc(p.baseUrl)}</p><p>已读取 ${wizardChecked.accounts} 个账号，其中 ${wizardChecked.running} 个运行中。</p>`}if(wizardStep<3){wizardStep++;wizardShow();return}b.disabled=true;const ps=[...(STATE.config.panels||[]),wizardCandidate()];if(ps.length>8)throw Error('最多支持 8 个面板');await savePanels(ps,STATE.config.activePanel||0);wizardClose();toast('面板已保存，可在账号页确认目标后推送');load()}catch(err){$('wizardError').textContent=err.message}finally{b.disabled=false}};
 }
 addUI();installHandlers();document.body.dataset.tab=localStorage.getItem(TAB_KEY)||'accounts';skeleton();load();
+
+// Optional integration code and data stay outside the account-page critical path.
+let qqBotAssetLoading=null;
+$('qqbotDetails').addEventListener('toggle',()=>{
+ if(!$('qqbotDetails').open){window.QQBotSettings?.clearBinding();return}
+ if(window.QQBotSettings){window.QQBotSettings.refresh();return}
+ if(qqBotAssetLoading)return;
+ $('qqbotRoot').textContent='正在加载 QQ 机器人设置…';
+ qqBotAssetLoading=document.createElement('script');qqBotAssetLoading.src='qqbot.js';
+ qqBotAssetLoading.onerror=()=>{qqBotAssetLoading.remove();qqBotAssetLoading=null;$('qqbotRoot').textContent='设置加载失败，请收起后重试。'};
+ document.head.appendChild(qqBotAssetLoading);
+});
