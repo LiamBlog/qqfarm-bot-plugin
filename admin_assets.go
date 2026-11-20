@@ -31,7 +31,6 @@ func prepareAdminAssets() map[string]*adminAsset {
 			return b
 		}
 		page, css, js := read("index.html"), read("enhancements.css"), read("enhancements.js")
-		qqjs := read("qqbot.js")
 		page = bytes.Replace(page, []byte(`<link rel="stylesheet" href="enhancements.css">`), append(append([]byte("<style>\n"), css...), []byte("\n</style>")...), 1)
 		page = bytes.Replace(page, []byte(`<script src="enhancements.js"></script>`), append(append([]byte("<script>\n"), js...), []byte("\n</script>")...), 1)
 		makeAsset := func(body []byte, mime string) *adminAsset {
@@ -50,7 +49,7 @@ func prepareAdminAssets() map[string]*adminAsset {
 			return &adminAsset{plain: body, zipped: zipped, contentType: mime, etag: fmt.Sprintf(`"%x"`, sha256.Sum256(body)), gzipETag: fmt.Sprintf(`"%x"`, sha256.Sum256(zipped))}
 		}
 		html := makeAsset(page, "text/html; charset=utf-8")
-		sharedAdminAssets = map[string]*adminAsset{"/": html, "/index.html": html, "/enhancements.css": makeAsset(css, "text/css; charset=utf-8"), "/enhancements.js": makeAsset(js, "text/javascript; charset=utf-8"), "/qqbot.js": makeAsset(qqjs, "text/javascript; charset=utf-8")}
+		sharedAdminAssets = map[string]*adminAsset{"/": html, "/index.html": html, "/enhancements.css": makeAsset(css, "text/css; charset=utf-8"), "/enhancements.js": makeAsset(js, "text/javascript; charset=utf-8")}
 	})
 	return sharedAdminAssets
 }

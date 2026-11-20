@@ -8,12 +8,6 @@ import (
 	"time"
 )
 
-func (a *Admin) sourceStatus() map[string]any {
-	a.cacheMu.Lock()
-	defer a.cacheMu.Unlock()
-	return map[string]any{"accountsAt": max(int64(0), a.botsAt.UnixMilli()), "accountsError": a.botsError, "accountsStale": a.botsAt.IsZero() || a.botsError != "", "panelsAt": a.panelAt.UnixMilli()}
-}
-
 // serveOperations is called only after the existing managed-token/origin gate.
 func (a *Admin) serveOperations(w http.ResponseWriter, r *http.Request) bool {
 	known := map[string]bool{"/api/tasks": true, "/api/tasks/cancel": true, "/api/tasks/retry": true, "/api/routing": true, "/api/history": true, "/api/history/export": true, "/api/setup/probe": true}
@@ -192,9 +186,30 @@ func (a *Admin) serveOperations(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
+func clonePanelValue(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, v := range x {
+			out[k] = clonePanelValue(v)
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, v := range x {
+			out[i] = clonePanelValue(v)
+		}
+		return out
+	case []map[string]any:
+		return clonePanelStatus(x)
+	default:
+		return v
+	}
+}
 func clonePanelStatus(in []map[string]any) []map[string]any {
-	raw, _ := json.Marshal(in)
-	out := []map[string]any{}
-	_ = json.Unmarshal(raw, &out)
+	out := make([]map[string]any, len(in))
+	for i, p := range in {
+		out[i] = clonePanelValue(p).(map[string]any)
+	}
 	return out
 }

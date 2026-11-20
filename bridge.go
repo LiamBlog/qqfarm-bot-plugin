@@ -64,7 +64,6 @@ type Activity struct {
 }
 
 type Bridge struct {
-	qq             *QQBot
 	ops            *Operations
 	activitySaveMu sync.Mutex
 	cfg            *Config
@@ -127,7 +126,6 @@ func newBridge(cfg *Config, ipc *IPC, dataDir string) *Bridge {
 	}
 	b.loadState()
 	b.ops = newOperations(b)
-	b.qq = newQQBot(b, dataDir)
 	return b
 }
 
@@ -929,9 +927,6 @@ func (b *Bridge) trackPush(index int, err error) {
 		if was {
 			b.LogActivity("panel", fmt.Sprintf("面板「%s」推送已恢复正常", panel.Label), "", nil)
 			b.notify("面板推送恢复", fmt.Sprintf("面板「%s」已恢复接收推送", panel.Label), "ok")
-			if b.qq != nil {
-				b.qq.NotifyPanel("面板推送已恢复", "success", panel.BaseURL)
-			}
 		}
 		return
 	}
@@ -951,9 +946,6 @@ func (b *Bridge) trackPush(index int, err error) {
 		fail := false
 		b.LogActivity("panel", fmt.Sprintf("面板「%s」连续 %d 次推送失败", panel.Label, fails), reason, &fail)
 		b.notify("推送连续失败", fmt.Sprintf("面板「%s」连续 %d 次推送失败：%s", panel.Label, fails, reason), "error")
-		if b.qq != nil {
-			b.qq.NotifyPanel("面板推送连续失败", "error", panel.BaseURL)
-		}
 	}
 }
 
@@ -972,9 +964,6 @@ func (b *Bridge) raiseAlert(index int, reason string) {
 	b.alertOn[panel.BaseURL] = true
 	b.alertMu.Unlock()
 	b.notify("推送持续失败", fmt.Sprintf("面板「%s」%s", panel.Label, reason), "error")
-	if b.qq != nil {
-		b.qq.NotifyPanel("面板推送持续失败", "error", panel.BaseURL)
-	}
 }
 
 // alertInfo 返回某面板的连续失败次数与告警状态。
@@ -1266,9 +1255,6 @@ func (b *Bridge) OnBotOffline(event map[string]any) {
 		msg += "：" + text
 	}
 	b.appendActivity(Activity{Time: time.Now().UnixMilli(), Type: "offline", SelfID: strconv.FormatInt(selfID, 10), ProtocolID: protoID, Message: msg})
-	if b.qq != nil {
-		b.qq.NotifyOffline(selfID, protoID)
-	}
 }
 
 func (b *Bridge) RefreshStaleCodes() []map[string]any {

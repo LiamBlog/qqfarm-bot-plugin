@@ -87,9 +87,6 @@ func main() {
 		}
 	})
 
-	bridge.qq.Start()
-	defer bridge.qq.Stop()
-
 	admin := newAdmin(cfg, bridge, dataDir)
 	admin.start()
 

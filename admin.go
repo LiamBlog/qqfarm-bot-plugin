@@ -23,12 +23,18 @@ type Admin struct {
 	token   string
 	origin  string
 
-	cacheMu   sync.Mutex
-	botsError string
-	botsAt    time.Time
-	bots      []Bot
-	panelAt   time.Time
-	panels    []map[string]any
+	cacheMu       sync.Mutex
+	botsError     string
+	botsAt        time.Time
+	bots          []Bot
+	panelAt       time.Time
+	panels        []map[string]any
+	botsLoading   chan struct{}
+	botsAttempt   time.Time
+	panelsLoading chan struct{}
+	panelAttempt  time.Time
+	panelKey      string
+	panelEpoch    uint64
 }
 
 func newAdmin(cfg *Config, bridge *Bridge, dataDir string) *Admin {
@@ -64,47 +70,6 @@ func (a *Admin) allowed(r *http.Request) bool {
 		}
 	}
 	return true
-}
-
-func (a *Admin) botsCached() []Bot {
-	a.cacheMu.Lock()
-	defer a.cacheMu.Unlock()
-	if time.Since(a.botsAt) < 2*time.Second && a.bots != nil {
-		return a.bots
-	}
-	bots, err := a.bridge.botList()
-	if err != nil {
-		a.botsError = a.bridge.redact(err.Error())
-		logf("获取账号列表失败：%v", err)
-		return a.bots
-	}
-	a.botsError = ""
-	a.bots = bots
-	a.botsAt = time.Now()
-	return bots
-}
-
-func (a *Admin) panelsCached() []map[string]any {
-	if !a.cfg.Get().Enabled {
-		return []map[string]any{}
-	}
-	a.cacheMu.Lock()
-	defer a.cacheMu.Unlock()
-	if time.Since(a.panelAt) < 5*time.Second && a.panels != nil {
-		return clonePanelStatus(a.panels)
-	}
-	a.panels = a.bridge.PanelStatus()
-	a.panelAt = time.Now()
-	for _, panel := range a.panels {
-		panel["checkedAt"] = a.panelAt.UnixMilli()
-	}
-	return clonePanelStatus(a.panels)
-}
-
-func (a *Admin) invalidatePanels() {
-	a.cacheMu.Lock()
-	a.panelAt = time.Time{}
-	a.cacheMu.Unlock()
 }
 
 func (a *Admin) state(historyLimit int) map[string]any {
@@ -254,9 +219,6 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 		return
 	}
 
-	if a.serveQQBot(w, r) {
-		return
-	}
 	if a.serveOperations(w, r) {
 		return
 	}

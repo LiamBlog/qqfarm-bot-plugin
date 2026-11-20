@@ -25,6 +25,7 @@ let failOnce = 0
 let failAll = false
 let postCount = 0
 let forcedCode = ''
+let accountReadDelay=0
 let hello = null
 let actions = 0
 
@@ -62,7 +63,7 @@ const farm = http.createServer((req, res) => {
       if (!failAll) failOnce -= 1
       return send(500, { ok: false, error: 'upstream boom' })
     }
-    if (req.url === '/api/accounts' && req.method === 'GET') return send(200, { ok: true, data: { accounts: farmAccounts } })
+    if (req.url === '/api/accounts' && req.method === 'GET') {if(accountReadDelay)return setTimeout(()=>send(200,{ok:true,data:{accounts:farmAccounts}}),accountReadDelay);return send(200,{ok:true,data:{accounts:farmAccounts}})}
     if (req.url === '/api/accounts' && req.method === 'POST') {
       postCount += 1
       const idx = farmAccounts.findIndex(a => a.id === body.id)
@@ -280,6 +281,20 @@ const beforeDaily=(await call('/api/state')).stats.todayOk
 await fetch(BASE+'/api/history_clear',{method:'POST'})
 const afterClear=await call('/api/state')
 summarize('清空历史不重置今日累计',afterClear.stats.todayOk===beforeDaily&&afterClear.history.length===0,'')
+
+// Re-enter a fresh configuration snapshot with a deliberately slow read-only panel.
+await waitForTasksIdle()
+await waitFor(async()=>{const s=await call('/api/state');return !s.sources?.panelsRefreshing})
+accountReadDelay=900
+const beforeSlow=performance.now()
+const slowResult=await call('/api/config',{farm:{enabled:true}})
+const slowStateMs=Math.round(performance.now()-beforeSlow)
+const baseline=process.env.QQFARM_CACHE_BASELINE==='1'
+summarize('慢面板不阻塞配置状态响应',baseline?slowStateMs>=800:slowStateMs<500,slowStateMs+'ms')
+summarize('慢面板期间账号仍然可读',slowResult.state?.accounts?.some(a=>a.self_id===10001),'')
+accountReadDelay=0
+await waitFor(async()=>{const s=await call('/api/state');return !s.sources?.panelsRefreshing})
+if(process.env.QQFARM_CACHE_METRICS)writeFileSync(process.env.QQFARM_CACHE_METRICS,JSON.stringify({baseline,version:VERSION,simulatedPanelDelayMs:900,configStateResponseMs:slowStateMs,accountsReadable:true},null,2))
 
 child.kill('SIGTERM')
 farm.close()

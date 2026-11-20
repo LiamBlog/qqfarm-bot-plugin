@@ -45,7 +45,7 @@ function renderEnhancements(s){
  if(document.body.dataset.tab==='activity'&&Date.now()-lastHistoryRefresh>10000)refreshHistory();
  syncDisabledSettings();
 }
-function onTabChanged(name){if(name==='activity'&&STATE){renderTasks(STATE);refreshHistory()}}
+function onTabChanged(name){if(!STATE)return;if(name==='panels'){renderPanels(STATE);renderDiagnosis(STATE)}if(name==='activity'){renderTasks(STATE);refreshHistory()}}
 function targetsFor(a,override){const ps=STATE.config.panels||[];if(override==='all')return ps.map(p=>p.baseUrl);if(override&&override!=='route')return[override];const r=STATE.routing||{},p=r.accounts?.[keyOf(a)]||{};return p.targets?.length?p.targets:r.groups?.[p.group]?.length?r.groups[p.group]:[ps[STATE.config.activePanel||0]?.baseUrl].filter(Boolean)}
 async function queuePush(ids,override=$('pushTarget')?.value||'route'){
  const accounts=(STATE?.accounts||[]).filter(a=>a.online&&ids.includes(keyOf(a)));if(!accounts.length)return toast('没有可推送的在线账号',false);
@@ -63,7 +63,7 @@ function renderTaskSummary(s){
 function renderTasks(s){
  const {tasks,active,failed}=renderTaskSummary(s);
  const f=$('taskFilter').value,list=tasks.filter(t=>f==='all'||(f==='active'?['queued','running','retry_wait']:['failed','interrupted']).includes(t.status));
- const html=list.length?list.slice(0,200).map(t=>`<article class="task-item"><div class="task-top"><strong>${esc(t.nickname||String(t.self_id))} <span class="faint">${esc(String(t.self_id))} #${t.protocol_id}</span></strong><span class="pill ${t.status==='failed'||t.status==='interrupted'?'r':t.status==='succeeded'?'g':'n'}">${taskLabels[t.status]||esc(t.status)}</span></div><div>→ ${esc(t.panel)} <span class="faint">${t.source==='automatic'?'自动':t.source==='qqbot'?'QQ 机器人':'手动'} · 尝试 ${t.attempt}/${t.max_attempts}</span></div><div class="task-stage"><progress max="2" value="${t.status==='running'?1:['succeeded','skipped'].includes(t.status)?2:0}" aria-label="${esc(t.stage)}"></progress><span>${esc(t.stage)}</span></div>${t.next_at?`<div class="faint">重试时间 ${dateText(t.next_at)}</div>`:''}${t.error?`<div class="task-error">${esc(t.error)}</div>`:''}<div class="task-actions"><time class="faint">${dateText(t.updated_at)}</time>${['queued','retry_wait'].includes(t.status)?`<button class="mini-btn" data-cancel-task="${esc(t.id)}">取消待执行</button>`:''}${['failed','interrupted'].includes(t.status)?`<button class="mini-btn" data-retry-task="${esc(t.id)}">重试此项</button>`:''}</div></article>`).join(''):'<div class="empty">当前筛选没有任务</div>';
+ const html=list.length?list.slice(0,200).map(t=>`<article class="task-item"><div class="task-top"><strong>${esc(t.nickname||String(t.self_id))} <span class="faint">${esc(String(t.self_id))} #${t.protocol_id}</span></strong><span class="pill ${t.status==='failed'||t.status==='interrupted'?'r':t.status==='succeeded'?'g':'n'}">${taskLabels[t.status]||esc(t.status)}</span></div><div>→ ${esc(t.panel)} <span class="faint">${t.source==='automatic'?'自动':'手动'} · 尝试 ${t.attempt}/${t.max_attempts}</span></div><div class="task-stage"><progress max="2" value="${t.status==='running'?1:['succeeded','skipped'].includes(t.status)?2:0}" aria-label="${esc(t.stage)}"></progress><span>${esc(t.stage)}</span></div>${t.next_at?`<div class="faint">重试时间 ${dateText(t.next_at)}</div>`:''}${t.error?`<div class="task-error">${esc(t.error)}</div>`:''}<div class="task-actions"><time class="faint">${dateText(t.updated_at)}</time>${['queued','retry_wait'].includes(t.status)?`<button class="mini-btn" data-cancel-task="${esc(t.id)}">取消待执行</button>`:''}${['failed','interrupted'].includes(t.status)?`<button class="mini-btn" data-retry-task="${esc(t.id)}">重试此项</button>`:''}</div></article>`).join(''):'<div class="empty">当前筛选没有任务</div>';
  setHTML('taskList',html);
 }
 function routingMark(){routingRevision++;routingDirty=true;$('routingStatus').textContent='有未保存的分组或路由更改';$('saveRouting').disabled=routingSaving}
@@ -86,8 +86,9 @@ function syncDisabledSettings(){const enabled=$('f_enabled').checked;$('f_pushOn
 
 // Diagnostics preserve the panel identity for each repair item.
 renderDiagnosis=function(s){const list=$('diagList'),issues=[];for(const [i,p]of(s.panels||[]).entries()){
+ if(p.checking)continue;
  if(!p.ok){issues.push({label:`${p.label}：${p.authBlocked||p.hasAuth===false?'认证失败，请更新凭据':p.error||'连接失败'}`,act:p.authBlocked||p.hasAuth===false?'edit':'test',panel:i});continue}
- for(const a of s.accounts||[]){if(!a.online)continue;const policy=s.routing?.accounts?.[keyOf(a)]||{};const targets=targetsFor(a,'route');if(!targets.includes(p.baseUrl))continue;const hit=(p.accounts||[]).find(h=>String(h.uin)===String(a.self_id));const stale=a.code_age_ms!=null&&a.code_age_ms>(s.config.staleHours||48)*3600000;if(!hit||hit.running===false||stale)issues.push({label:`${a.nickname||a.self_id} → ${p.label}：${!hit?'尚未接入':hit.running===false?'账号已停止':'Code 待更新'}${policy.paused?'（自动推送已暂停）':''}`,key:keyOf(a),base:p.baseUrl})}
+ for(const a of s.accounts||[]){if(!a.online)continue;const policy=s.routing?.accounts?.[keyOf(a)]||{};const targets=targetsFor(a,'route');if(!targets.includes(p.baseUrl))continue;const hit=panelAccount(p,a.self_id);const stale=a.code_age_ms!=null&&a.code_age_ms>(s.config.staleHours||48)*3600000;if(!hit||hit.running===false||stale)issues.push({label:`${a.nickname||a.self_id} → ${p.label}：${!hit?'尚未接入':hit.running===false?'账号已停止':'Code 待更新'}${policy.paused?'（自动推送已暂停）':''}`,key:keyOf(a),base:p.baseUrl})}
  };$('diagCount').textContent=issues.length?`${issues.length} 项`:'';$('diagCount').style.display=issues.length?'':'none';$('btnDiagAll').style.display=issues.some(i=>i.key)?'':'none';list.innerHTML=issues.length?issues.map((i,n)=>`<div class="diagnosis-item"><span>${esc(i.label)}</span><button class="mini-btn" data-diagnosis="${n}">${i.act==='edit'?'更新凭据':i.act==='test'?'重新检测':'修复此项'}</button></div>`).join(''):'<div class="faint hint">当前路由没有待处理问题。</div>';
  list.querySelectorAll('[data-diagnosis]').forEach(b=>b.onclick=()=>{const i=issues[Number(b.dataset.diagnosis)];if(i.act)panelAction(i.act,i.panel);else queuePush([i.key],i.base)});$('btnDiagAll').onclick=async()=>{const repairs=issues.filter(i=>i.key);if(!repairs.length)return;if(!confirm(`按当前路由修复 ${repairs.length} 项账号与面板对应关系？可能重启农场会话。`))return;try{for(const i of repairs)await api('api/tasks',{ids:[i.key],panel_urls:[i.base]});toast('修复任务已排队');load()}catch(e){toast(e.message,false)}};
 };
@@ -152,14 +153,3 @@ function installHandlers(){
 }
 addUI();installHandlers();document.body.dataset.tab=localStorage.getItem(TAB_KEY)||'accounts';skeleton();load();
 
-// Optional integration code and data stay outside the account-page critical path.
-let qqBotAssetLoading=null;
-$('qqbotDetails').addEventListener('toggle',()=>{
- if(!$('qqbotDetails').open){window.QQBotSettings?.clearBinding();return}
- if(window.QQBotSettings){window.QQBotSettings.refresh();return}
- if(qqBotAssetLoading)return;
- $('qqbotRoot').textContent='正在加载 QQ 机器人设置…';
- qqBotAssetLoading=document.createElement('script');qqBotAssetLoading.src='qqbot.js';
- qqBotAssetLoading.onerror=()=>{qqBotAssetLoading.remove();qqBotAssetLoading=null;$('qqbotRoot').textContent='设置加载失败，请收起后重试。'};
- document.head.appendChild(qqBotAssetLoading);
-});

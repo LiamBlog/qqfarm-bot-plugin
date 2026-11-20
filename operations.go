@@ -335,12 +335,8 @@ func (o *Operations) setTask(t *PushTask, status, stage, reason string, next int
 	t.Error = o.bridge.redact(reason)
 	t.NextAt = next
 	t.UpdatedAt = time.Now().UnixMilli()
-	finished := *t
 	o.mu.Unlock()
 	o.saveLogged()
-	if o.bridge.qq != nil && !taskActive(status) {
-		o.bridge.qq.TaskFinished(finished)
-	}
 }
 func (o *Operations) wait(t *PushTask, d time.Duration) bool {
 	if d <= 0 {
@@ -450,28 +446,21 @@ func (o *Operations) run(t *PushTask, delay time.Duration) {
 }
 func (o *Operations) Cancel(id string) error {
 	o.mu.Lock()
+	defer o.mu.Unlock()
 	for _, t := range o.tasks {
-		if t.ID != id {
-			continue
+		if t.ID == id {
+			if t.Status != "queued" && t.Status != "retry_wait" {
+				return errors.New("只能取消尚未执行的任务；运行中的远端操作不能撤销")
+			}
+			t.Status = "cancelled"
+			t.Stage = "已取消后续执行"
+			t.NextAt = 0
+			t.UpdatedAt = time.Now().UnixMilli()
+			close(t.cancel)
+			go o.saveLogged()
+			return nil
 		}
-		if t.Status != "queued" && t.Status != "retry_wait" {
-			o.mu.Unlock()
-			return errors.New("只能取消尚未执行的任务；运行中的远端操作不能撤销")
-		}
-		t.Status = "cancelled"
-		t.Stage = "已取消后续执行"
-		t.NextAt = 0
-		t.UpdatedAt = time.Now().UnixMilli()
-		close(t.cancel)
-		finished := *t
-		o.mu.Unlock()
-		o.saveLogged()
-		if o.bridge.qq != nil {
-			o.bridge.qq.TaskFinished(finished)
-		}
-		return nil
 	}
-	o.mu.Unlock()
 	return errors.New("任务不存在")
 }
 func (o *Operations) Retry(id string) (string, error) {
@@ -510,9 +499,6 @@ func (b *Bridge) PushAutomaticAll() {
 var secretPattern = regexp.MustCompile(`(?i)(token|password|access[_-]?code|authorization|code)(["\s:=]+)[^\s,;"}]+`)
 
 func (b *Bridge) redact(s string) string {
-	if b.qq != nil {
-		s = b.qq.redactSecrets(s)
-	}
 	for _, p := range b.Panels() {
 		for _, secret := range []string{p.Token, p.Password, p.AccessCode} {
 			if secret != "" {

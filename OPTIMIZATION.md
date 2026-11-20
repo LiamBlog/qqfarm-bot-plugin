@@ -56,3 +56,7 @@ bash build.sh 3.7.27 amd64
 ```
 
 新增的 ipc_test.go 和 bridge_regression_test.go 覆盖本次修复。模拟宿主仍使用原先的 Linux 包路径；本地 Windows 验证时可将 QQFARM_TEST_PACKAGE 指向带 bin/qqfarm-bot.exe 与 mengka-plugin.json 的测试目录。
+
+## 3.10.0：非阻塞状态读取
+
+面板检测和账号 IPC 读取不再持有全局缓存锁等待网络。已有快照优先返回；首次账号读取最多等待 250ms，面板冷缓存最多等待 75ms，随后由页面按需短轮询补齐。更新配置或缓存失效后，旧检测结果不会覆盖新快照。面板索引随快照重建，后台页暂停轮询，隐藏面板延迟构建。

@@ -996,10 +996,6 @@ window.__adminInitialState=fetch('api/state?h=60',{cache:'no-store',signal:Abort
       </div>
       </section>
     </div>
-    <details class="card qqbot-section" id="qqbotDetails">
-      <summary><strong>QQ 官方机器人</strong><span class="faint">消息提醒、管理员绑定与授权推送 · 展开后加载</span></summary>
-      <div id="qqbotRoot" aria-live="polite"><p class="faint">正在准备设置…</p></div>
-    </details>
   </section>
 
   <footer>农场桥接助手 · qqfarm-bot</footer>
@@ -1358,15 +1354,18 @@ async function post(path, body){
   return j
 }
 
-const panelHits = uin => (STATE?.panels||[]).map((p,i)=>({p,i,hit:(p.accounts||[]).find(a=>String(a.uin)===String(uin))})).filter(x=>x.hit)
+const panelAccountIndexes=new WeakMap()
+function panelAccount(p,uin){if(!p)return;let index=panelAccountIndexes.get(p);if(!index){index=new Map();for(const a of p.accounts||[]){const key=String(a.uin??a.qq??'');if(!index.has(key))index.set(key,a)}panelAccountIndexes.set(p,index)}return index.get(String(uin))}
+const panelHits=uin=>(STATE?.panels||[]).map((p,i)=>({p,i,hit:panelAccount(p,uin)})).filter(x=>x.hit)
 
 function syncStatus(g, s){
   const cfg=s.config||{}, p=s.panels?.[cfg.activePanel||0]
   const online=g.instances.some(a=>a.online)
   if(!cfg.enabled) return {label:'推送已暂停',cls:'n',pending:false}
   if(!cfg.panels?.length) return {label:'待配置面板',cls:'y',pending:online}
+  if(p?.checking) return {label:'面板检测中',cls:'n',pending:false}
   if(!p?.ok) return {label:'面板状态未知',cls:'y',pending:online}
-  const hit=(p.accounts||[]).find(a=>String(a.uin)===String(g.self_id))
+  const hit=panelAccount(p,g.self_id)
   if(hit?.running===false) return {label:'面板已停止',cls:'r',pending:true}
   if(!hit) return {label:online?'待推送':'离线 · 未接入',cls:online?'y':'n',pending:online}
   const limit=Number(cfg.staleHours)>0?Number(cfg.staleHours):48
@@ -1464,8 +1463,8 @@ function openAccount(selfId){
 
   const android=g.instances.find(a=>(a.platform||'').toLowerCase().includes('android'))
   const panels=Array.isArray(s.panels)?s.panels:[]
-  const panelRows=panels.length?panels.map((p,i)=>({p,i})).sort((a,b)=>Number(a.p.ok)-Number(b.p.ok)).map(({p,i})=>{
-    const hit=(p.accounts||[]).find(a=>String(a.qq??a.uin??'')===String(g.self_id))
+  const panelRows=panels.length?panels.map((p,i)=>({p,i})).sort((a,b)=>Number(!b.p.ok&&!b.p.checking)-Number(!a.p.ok&&!a.p.checking)).map(({p,i})=>{
+    const hit=panelAccount(p,g.self_id)
     const canPush=Boolean(android&&android.online)
     const pushBtn=canPush?`<button class="mini-btn" data-dwpush="${i}" title="推送到该面板">${ICONS.upload}${hit?'重推':'推送'}</button>`:''
     if(!hit) return `<div class="dw-item"><span>${esc(p.label)}</span><span class="pill n">未接入</span>${pushBtn}</div>`
@@ -1610,6 +1609,7 @@ function render(s){
       if(!cfg.enabled) el.innerHTML='<span class="dot off"></span>推送未启用'
       else if(!panels.length) el.innerHTML='<span class="dot off"></span>无面板'
       else if(panels.some(p=>p.ok)) el.innerHTML=`<span class="dot on"></span>${panels.filter(p=>p.ok).length}/${panels.length} 面板正常`
+      else if(panels.some(p=>p.checking)) el.innerHTML='<span class="dot"></span>面板检测中'
       else el.innerHTML='<span class="dot off"></span>面板均不可达'
     })
     const alerts=panels.filter(p=>p.alert)
@@ -1644,11 +1644,12 @@ function render(s){
     set('greetSub', e=>e.textContent = !hasPanelCfg ? '还没有接入面板，账号 Code 暂时无处推送'
       : !cfg.enabled ? '推送未启用，面板已就绪'
       : alerts.length ? `${alerts.length} 个面板告警，需要尽快处理`
+      : panels.some(p=>p.checking) ? '面板正在后台检测，账号操作已就绪'
       : okPanels===panels.length ? '所有面板连接正常'
       : `${panels.length-okPanels} 个面板不可达`)
     // 侧栏底部概览（仅桌面端可见）
     set('sfPanels', e=>{ e.textContent=panels.length?`${okPanels}/${panels.length}`:'–'
-      e.className = !panels.length ? '' : (okPanels<panels.length ? 'err' : 'ok') })
+      e.className = !panels.length||panels.some(p=>p.checking) ? '' : (okPanels<panels.length ? 'err' : 'ok') })
     set('sfOnline', e=>e.textContent=online)
     set('sfPush', e=>e.textContent=s.stats?.todayOk||0)
     set('accountCount', e=>e.textContent=allGroups.length+' 个账号 · '+s.accounts.length+' 个实例')
@@ -1656,7 +1657,7 @@ function render(s){
 
     /* 账号表：按 QQ 分组，同 QQ 的多协议实例共用账号单元格 */
     const kw=(($('search')?.value)||'').trim().toLowerCase()
-    let groupList=collectGroups(s).filter(g=>
+    let groupList=allGroups.filter(g=>
       !kw||String(g.self_id).includes(kw)||g.nickname.toLowerCase().includes(kw)||g.remark.toLowerCase().includes(kw)
       ||g.instances.some(a=>(a.platform||'').toLowerCase().includes(kw)))
     const maxLevel=g=>Math.max(...g.instances.map(a=>Number(a.level)||0))
@@ -1815,10 +1816,7 @@ function render(s){
     }
 
     /* 面板列表 */
-    renderPanels(s)
-
-    /* 诊断 */
-    renderDiagnosis(s)
+    if(document.body.dataset.tab==='panels'){renderPanels(s);renderDiagnosis(s)}
 
     /* 设置 */
     if(!settingsDirty){
@@ -1923,6 +1921,7 @@ function sparklineSvg(vals){
   const area=`M${pts[0][0].toFixed(1)} ${h-pad} `+pts.map(p=>`L${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ')+` L${pts[pts.length-1][0].toFixed(1)} ${h-pad} Z`
   return `<span class="panel-spark" title="最近 ${vals.length} 次延迟：${vals.join(' / ')} ms"><svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><path class="sp-area" d="${area}"/><path class="sp-line" d="${line}"/></svg><span class="sp-ms">${vals[vals.length-1]}ms</span></span>`
 }
+const panelMsObserved={}
 function renderPanels(s){
   const el=$('panelList'); if(!el) return
   const cfg=s.config||{}, panels=Array.isArray(s.panels)?s.panels:[]
@@ -1934,12 +1933,13 @@ function renderPanels(s){
   rows.forEach(p=>{
     if(!p.ok||!Number(p.ms)) return
     const k=p.baseUrl||p.label||'panel'
+    const signature=String(p.checkedAt||s.now)+':'+p.ms;if(panelMsObserved[k]===signature)return;panelMsObserved[k]=signature
     const arr=panelMsHist[k]||(panelMsHist[k]=[])
     arr.push(Number(p.ms)); if(arr.length>24) arr.shift()
   })
   const html=rows.map((p,i)=>({p,i})).sort((a,b)=>Number(a.p.ok)-Number(b.p.ok)).map(({p,i})=>{
     const isActive=i===active
-    const status=p.ok
+    const status=p.checking?`<span class="status-chip"><span class="dot"></span>后台检测中</span>`:p.ok
       ?`<span class="status-chip ok"><span class="dot"></span>正常</span>`
       :`<span class="status-chip err" title="${esc(p.error||'不可达')}"><span class="dot"></span>${esc((p.error||'不可达').slice(0,20))}</span>`
     const spark=p.ok?sparklineSvg(panelMsHist[p.baseUrl||p.label||'panel']):''
@@ -2136,7 +2136,15 @@ async function pushOne(b){
   BUSY=false;load()
 }
 
-let LOAD_PROMISE=null
+let LOAD_PROMISE=null, SOURCE_REFRESH_TIMER=null, SOURCE_REFRESH_UNTIL=0
+function scheduleSourceRefresh(s){
+ clearTimeout(SOURCE_REFRESH_TIMER);SOURCE_REFRESH_TIMER=null;
+ const pending=s?.sources?.accountsRefreshing||s?.sources?.panelsRefreshing||(s?.panels||[]).some(p=>p.checking);
+ if(!pending){SOURCE_REFRESH_UNTIL=0;return}
+ if(document.hidden)return;
+ if(!SOURCE_REFRESH_UNTIL)SOURCE_REFRESH_UNTIL=Date.now()+30000;
+ if(Date.now()<SOURCE_REFRESH_UNTIL)SOURCE_REFRESH_TIMER=setTimeout(()=>load(),1000)
+}
 async function load(){
  if(LOAD_PROMISE) return LOAD_PROMISE
  LOAD_PROMISE=(async()=>{try{
@@ -2144,15 +2152,18 @@ async function load(){
   const initial=window.__adminInitialState;delete window.__adminInitialState
   if(initial){const result=await initial;if(result.error)throw Error(result.error);j=result.data}
   else{const res=await fetch('api/state?h='+historyLimit,{cache:'no-store',signal:AbortSignal.timeout(20000)});if(!res.ok)throw Error('HTTP '+res.status);j=await res.json();if(j.error)throw Error(j.error)}
-  set('accErr',e=>e.textContent='');render(j);markFreshness(true,j)
+  set('accErr',e=>e.textContent='');render(j);markFreshness(true,j);scheduleSourceRefresh(j)
  }catch(e){markFreshness(false,null,e.message)}finally{LOAD_PROMISE=null}})()
  return LOAD_PROMISE
 }
 setInterval(()=>{
+  if(document.hidden){set('countdown',e=>e.textContent='后台已暂停刷新');return}
   SECONDS-=1
   if(SECONDS<=0){SECONDS=15;load()}
   set('countdown', e => e.textContent=BUSY?'推送中…':`${SECONDS}s 后刷新`)
 },1000)
+
+document.addEventListener('visibilitychange',()=>{clearTimeout(SOURCE_REFRESH_TIMER);SOURCE_REFRESH_TIMER=null;if(!document.hidden){SECONDS=15;SOURCE_REFRESH_UNTIL=0;load()}})
 
 set('btnReload', b => b.onclick=()=>{set('accErr',e=>e.textContent='');load()})
 set('search', b => b.oninput=()=>STATE&&render(STATE))
