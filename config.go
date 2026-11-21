@@ -414,7 +414,12 @@ func loadRemarks(dataDir string) map[string]string {
 	return out
 }
 
+// remarksWriteMu keeps concurrent remark updates from overwriting each other.
+var remarksWriteMu sync.Mutex
+
 func saveRemark(dataDir string, selfID int64, remark string) error {
+	remarksWriteMu.Lock()
+	defer remarksWriteMu.Unlock()
 	path := remarksPath(dataDir)
 	if path == "" {
 		return fmt.Errorf("数据目录不可用")

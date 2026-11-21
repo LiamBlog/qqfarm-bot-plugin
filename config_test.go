@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 )
@@ -171,5 +173,41 @@ func TestReloadIfChanged(t *testing.T) {
 	farm := cfg.Get()
 	if farm.Enabled || farm.RefreshMinutes != 5 || len(farm.Panels) != 1 || farm.Panels[0].BaseURL != "http://b" {
 		t.Fatalf("热加载结果错误：%+v", farm)
+	}
+}
+
+func TestSaveRemarkConcurrentUpdatesArePreserved(t *testing.T) {
+	dir := t.TempDir()
+	const count = 64
+	start := make(chan struct{})
+	errs := make(chan error, count)
+	var wg sync.WaitGroup
+	for i := 0; i < count; i++ {
+		i := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			errs <- saveRemark(dir, int64(10000+i), fmt.Sprintf("remark-%d", i))
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("并发保存备注失败：%v", err)
+		}
+	}
+	got := loadRemarks(dir)
+	if len(got) != count {
+		t.Fatalf("并发更新有丢失：得到 %d 条备注，期望 %d 条", len(got), count)
+	}
+	for i := 0; i < count; i++ {
+		id := fmt.Sprintf("%d", 10000+i)
+		want := fmt.Sprintf("remark-%d", i)
+		if got[id] != want {
+			t.Errorf("账号 %s 的备注 = %q，期望 %q", id, got[id], want)
+		}
 	}
 }

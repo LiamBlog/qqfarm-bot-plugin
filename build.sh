@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-VERSION="${1:-3.12.0}"
+VERSION="${1:-3.12.1}"
 TARGET="${2:-all}"
 case "$TARGET" in
   all)             TARGETS=("linux/amd64" "linux/arm64" "windows/amd64") ;;
@@ -80,7 +80,11 @@ JSON
   fi
 
   echo "[4/4] 打包 ${NAME}"
-  tar -czf "$OUT/${NAME}.tar.gz" -C "$PKG" mengka-plugin.json bin
+  TAR_TMP="$OUT/${NAME}.tar"
+  tar --format=ustar --mode=0644 -cf "$TAR_TMP" -C "$PKG" mengka-plugin.json
+  tar --format=ustar --mode=0755 -rf "$TAR_TMP" -C "$PKG" bin
+  gzip -n -c "$TAR_TMP" > "$OUT/${NAME}.tar.gz"
+  rm -f "$TAR_TMP"
   SHA=$(sha256sum "$OUT/${NAME}.tar.gz" | awk '{print $1}')
   echo "$SHA  ${NAME}.tar.gz" > "$OUT/${NAME}.tar.gz.sha256"
   SIZE=$(du -h "$OUT/${NAME}.tar.gz" | cut -f1)
