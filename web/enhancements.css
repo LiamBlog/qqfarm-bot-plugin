@@ -156,3 +156,5 @@ header {background:var(--card);border-radius:16px;box-shadow:var(--shadow)}
  html {scroll-behavior:auto}
  *,*::before,*::after {animation:none!important;transition:none!important}
 }
+
+.panel-failure-hint,.task-help{padding:10px 12px;background:var(--warn-soft);border-radius:10px;line-height:1.6;margin:10px 0;overflow-wrap:anywhere}.task-help{display:flex;gap:12px;align-items:center;justify-content:space-between}.task-help .mini-btn{flex-shrink:0}@media(max-width:640px){.task-help{align-items:flex-start;flex-direction:column}}

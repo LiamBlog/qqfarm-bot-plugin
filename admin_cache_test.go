@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -200,5 +202,123 @@ func TestRemovedOfficialBotEndpointsAndAssets(t *testing.T) {
 	body := string(prepareAdminAssets()["/"].plain)
 	if strings.Contains(body, "qqbotDetails") || strings.Contains(body, "QQBotSettings") {
 		t.Fatal("removed UI remains in native bundle")
+	}
+}
+func TestAdminFastPanelPublishesBeforeSlowPeer(t *testing.T) {
+	gate := make(chan struct{})
+	var once sync.Once
+	release := func() { once.Do(func() { close(gate) }) }
+	defer release()
+	var fastCalls, slowCalls atomic.Int64
+	fast := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fastCalls.Add(1)
+		_, _ = io.WriteString(w, `{"ok":true,"data":{"accounts":[{"qq":"10001","running":true}]}}`)
+	}))
+	defer fast.Close()
+	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		slowCalls.Add(1)
+		<-gate
+		_, _ = io.WriteString(w, `{"ok":true,"data":{"accounts":[]}}`)
+	}))
+	defer slow.Close()
+	defer release()
+	a := cacheTestAdmin(t, fast.URL)
+	f := a.cfg.Get()
+	f.Panels = append(f.Panels, Panel{Label: "慢面板", BaseURL: slow.URL, Token: "slow-secret", AuthMode: "token"})
+	if err := a.cfg.Set(f); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	p := a.panelsCached()
+	deadline := time.Now().Add(time.Second)
+	for p[0]["ok"] != true && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+		p = a.panelsCached()
+	}
+	if p[0]["ok"] != true || p[0]["refreshing"] != false || p[1]["checking"] != true || a.sourceStatus()["panelsRefreshing"] != true {
+		t.Fatal("fast panel waited for slow peer", p)
+	}
+	t.Logf("fast panel available while slow peer is blocked: %d ms", time.Since(start).Milliseconds())
+	if fastCalls.Load() != 1 || slowCalls.Load() != 1 {
+		t.Fatal("probe duplication")
+	}
+	release()
+	waitCache(t, a, "panelsRefreshing")
+	if a.panelsCached()[1]["ok"] != true {
+		t.Fatal("slow result not published")
+	}
+}
+func TestAdminCompactStateOmitsRetainedDetails(t *testing.T) {
+	a := cacheTestAdmin(t, "http://unused.test")
+	f := a.cfg.Get()
+	f.Enabled = false
+	if err := a.cfg.Set(f); err != nil {
+		t.Fatal(err)
+	}
+	a.bridge.ops.mu.Lock()
+	for i := 0; i < 1000; i++ {
+		a.bridge.ops.tasks = append(a.bridge.ops.tasks, &PushTask{ID: fmt.Sprint(i), Status: "failed", Stage: strings.Repeat("历史任务内容", 20), Error: strings.Repeat("旧错误详情", 30)})
+	}
+	a.bridge.ops.mu.Unlock()
+	full := a.state(2)
+	compact := a.stateView(2, "accounts")
+	rawFull, _ := json.Marshal(full)
+	rawCompact, _ := json.Marshal(compact)
+	if _, ok := compact["tasks"]; ok {
+		t.Fatal("compact state contains full tasks")
+	}
+	if _, ok := compact["history"]; ok {
+		t.Fatal("compact state contains history")
+	}
+	if _, ok := compact["retries"]; ok {
+		t.Fatal("compact state contains retry list")
+	}
+	if compact["task_summary"].(map[string]any)["failed"] != 1000 {
+		t.Fatal("task summary lost failures")
+	}
+	if len(rawCompact) > len(rawFull)/10 {
+		t.Fatal("compact response did not shrink", len(rawFull), len(rawCompact))
+	}
+	t.Logf("1000-task state bytes: full=%d compact=%d", len(rawFull), len(rawCompact))
+	r := httptest.NewRequest("GET", "/api/state?view=invalid", nil)
+	w := httptest.NewRecorder()
+	a.handler(w, r)
+	if w.Code != 400 {
+		t.Fatal("unknown view accepted")
+	}
+	r = httptest.NewRequest("GET", "/api/tasks", nil)
+	w = httptest.NewRecorder()
+	a.handler(w, r)
+	var body struct {
+		Tasks []PushTask `json:"tasks"`
+	}
+	_ = json.Unmarshal(w.Body.Bytes(), &body)
+	if len(body.Tasks) != 1000 {
+		t.Fatal("explicit task endpoint lost retained tasks")
+	}
+}
+func TestPanelFailureCategories(t *testing.T) {
+	for _, v := range []struct {
+		message, kind string
+		blocked, auth bool
+	}{{"HTTP 401", "auth", false, true}, {"password denied", "auth", true, true}, {"context deadline exceeded", "timeout", false, true}, {"dial tcp: connection refused", "connection", false, true}, {"HTTP 503", "server", false, true}, {"HTTP 404", "response", false, true}, {"json invalid", "response", false, true}, {"unknown", "unknown", false, true}, {"", "auth", false, false}} {
+		kind, hint := classifyPanelFailure(errors.New(v.message), v.blocked, v.auth)
+		if kind != v.kind || hint == "" {
+			t.Errorf("%s: %s %s", v.message, kind, hint)
+		}
+	}
+}
+func TestTaskSummaryRevisionChangesForSameCountAndTimestamp(t *testing.T) {
+	b := opsTestBridge(t)
+	task := &PushTask{ID: "same-time", Status: "queued", UpdatedAt: 123}
+	b.ops.tasks = []*PushTask{task}
+	before := b.ops.Summary()
+	b.ops.mu.Lock()
+	task.Stage = "执行进度已更新"
+	b.ops.mu.Unlock()
+	b.ops.saveLogged()
+	after := b.ops.Summary()
+	if before["active"] != after["active"] || before["updatedAt"] != after["updatedAt"] || before["revision"] == after["revision"] {
+		t.Fatal("same-count progress changes cannot invalidate task details")
 	}
 }

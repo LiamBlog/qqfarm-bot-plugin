@@ -16,7 +16,7 @@
 <script>
 // Start the first read while the rest of the interface is parsed. Keep failures
 // handled until the normal loading UI is ready to display them.
-window.__adminInitialState=fetch('api/state?h=60',{cache:'no-store',signal:AbortSignal.timeout(20000)})
+window.__adminInitialState=fetch('api/state?view=accounts&h=60',{cache:'no-store',signal:AbortSignal.timeout(20000)})
  .then(async response=>{if(!response.ok)throw Error('HTTP '+response.status);const data=await response.json();if(data.error)throw Error(data.error);return{data}})
  .catch(error=>({error:error.message}));
 </script>
@@ -1954,7 +1954,7 @@ function renderPanels(s){
     const codeText=a=>a.running===false?'已停止':'已接入'
     const accChips=(p.accounts||[]).slice(0,8).map(a=>
       `<span class="pill ${a.running===false?'y':(a.hasCode?'g':'n')}" title="${esc(a.name||a.uin)}${a.running===false?'（已停止）':(a.running?'（运行中）':'')}">${esc(a.uin)} · ${esc(codeText(a))}</span>`).join('')
-    return `<div class="panel-card ${isActive?'active':''}">
+    return `<div class="panel-card ${isActive?'active':''}" data-panel-url="${esc(p.baseUrl)}" tabindex="-1">
       <div class="panel-top">
         <button class="star ${isActive?'on':''}" data-act="active" data-i="${i}" title="${isActive?'当前推送目标':'设为推送目标'}">${ICONS.star}</button>
         <div class="panel-heading">
@@ -1972,13 +1972,14 @@ function renderPanels(s){
 
         <span class="panel-check">最近检查 ${p.checkedAt?new Date(p.checkedAt).toLocaleTimeString('zh-CN',{hour12:false}):'尚未检查'}</span>
       </div>
+      ${!p.ok&&!p.checking&&p.failureHint?`<div class="panel-failure-hint" role="note">${esc(p.failureHint)}</div>`:''}
       ${accChips?`<div class="panel-accs"><span class="panel-accs-label">面板账号</span><div class="panel-accs-scroll">${accChips}</div></div>`:''}
       <div class="panel-actions">
         <button class="mini-btn" data-act="test" data-i="${i}" title="测试面板连通性（登录 + 拉取账号）">${ICONS.link}重新检测</button>
         <button class="mini-btn" data-act="push" data-i="${i}" title="推送全部在线安卓账号到此面板">${ICONS.upload}推送到此</button>
         <a class="mini-btn" href="${esc(p.baseUrl)}" target="_blank" rel="noopener" title="打开面板">${ICONS.link}打开</a>
         <span class="panel-actions-gap"></span>
-        <button class="mini-btn" data-act="edit" data-i="${i}" title="编辑面板">${ICONS.edit}${p.authBlocked||p.hasAuth===false?'更新凭据':'编辑'}</button>
+        <button class="mini-btn" data-act="edit" data-i="${i}" title="编辑面板">${ICONS.edit}${p.failureKind==='auth'||p.authBlocked||p.hasAuth===false?'更新凭据':'编辑'}</button>
         <button class="mini-btn danger" data-act="del" data-i="${i}" title="删除面板">${ICONS.trash}删除</button>
       </div>
     </div>`
@@ -2136,34 +2137,29 @@ async function pushOne(b){
   BUSY=false;load()
 }
 
-let LOAD_PROMISE=null, SOURCE_REFRESH_TIMER=null, SOURCE_REFRESH_UNTIL=0
-function scheduleSourceRefresh(s){
- clearTimeout(SOURCE_REFRESH_TIMER);SOURCE_REFRESH_TIMER=null;
- const pending=s?.sources?.accountsRefreshing||s?.sources?.panelsRefreshing||(s?.panels||[]).some(p=>p.checking);
- if(!pending){SOURCE_REFRESH_UNTIL=0;return}
- if(document.hidden)return;
- if(!SOURCE_REFRESH_UNTIL)SOURCE_REFRESH_UNTIL=Date.now()+30000;
- if(Date.now()<SOURCE_REFRESH_UNTIL)SOURCE_REFRESH_TIMER=setTimeout(()=>load(),1000)
+let LOAD_PROMISE=null, POLL_FAILURES=0
+function refreshSeconds(s,failures=0){
+ if(failures)return Math.min(120,15*Math.pow(2,failures-1))
+ if(s?.sources?.accountsRefreshing||s?.sources?.panelsRefreshing||(s?.panels||[]).some(p=>p.checking))return 2
+ const active=s?.task_summary?.active??(s?.tasks||[]).filter(t=>['queued','running','retry_wait'].includes(t.status)).length
+ return active?3:30
 }
 async function load(){
- if(LOAD_PROMISE) return LOAD_PROMISE
+ if(LOAD_PROMISE)return LOAD_PROMISE
  LOAD_PROMISE=(async()=>{try{
-  let j
-  const initial=window.__adminInitialState;delete window.__adminInitialState
+  let j;const initial=window.__adminInitialState;delete window.__adminInitialState
   if(initial){const result=await initial;if(result.error)throw Error(result.error);j=result.data}
-  else{const res=await fetch('api/state?h='+historyLimit,{cache:'no-store',signal:AbortSignal.timeout(20000)});if(!res.ok)throw Error('HTTP '+res.status);j=await res.json();if(j.error)throw Error(j.error)}
-  set('accErr',e=>e.textContent='');render(j);markFreshness(true,j);scheduleSourceRefresh(j)
- }catch(e){markFreshness(false,null,e.message)}finally{LOAD_PROMISE=null}})()
+  else{const view=document.body.dataset.tab||'accounts',res=await fetch('api/state?view='+encodeURIComponent(view)+'&h='+historyLimit,{cache:'no-store',signal:AbortSignal.timeout(20000)});if(!res.ok)throw Error('HTTP '+res.status);j=await res.json();if(j.error)throw Error(j.error)}
+  POLL_FAILURES=0;SECONDS=refreshSeconds(j);set('accErr',e=>e.textContent='');render(j);markFreshness(true,j)
+ }catch(e){POLL_FAILURES++;SECONDS=refreshSeconds(null,POLL_FAILURES);markFreshness(false,null,e.message)}finally{LOAD_PROMISE=null}})()
  return LOAD_PROMISE
 }
 setInterval(()=>{
-  if(document.hidden){set('countdown',e=>e.textContent='后台已暂停刷新');return}
-  SECONDS-=1
-  if(SECONDS<=0){SECONDS=15;load()}
-  set('countdown', e => e.textContent=BUSY?'推送中…':`${SECONDS}s 后刷新`)
+ if(document.hidden){set('countdown',e=>e.textContent='后台已暂停刷新');return}
+ if(!LOAD_PROMISE){SECONDS--;if(SECONDS<=0)load()}
+ set('countdown',e=>e.textContent=BUSY?'推送中…':LOAD_PROMISE?'正在刷新…':SECONDS+'s 后刷新')
 },1000)
-
-document.addEventListener('visibilitychange',()=>{clearTimeout(SOURCE_REFRESH_TIMER);SOURCE_REFRESH_TIMER=null;if(!document.hidden){SECONDS=15;SOURCE_REFRESH_UNTIL=0;load()}})
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){SECONDS=0;load()}})
 
 set('btnReload', b => b.onclick=()=>{set('accErr',e=>e.textContent='');load()})
 set('search', b => b.oninput=()=>STATE&&render(STATE))

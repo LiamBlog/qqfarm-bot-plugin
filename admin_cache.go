@@ -89,24 +89,42 @@ func (a *Admin) panelsCached() []map[string]any {
 		a.panelsLoading = done
 		a.panelAttempt = time.Now()
 		epoch := a.panelEpoch
-		go func() {
-			panels := a.bridge.PanelStatus()
-			at := time.Now()
-			for _, p := range panels {
-				p["checkedAt"] = at.UnixMilli()
+		// Copy-on-write: snapshots already handed to readers are never mutated.
+		if a.panels == nil {
+			a.panels = make([]map[string]any, len(farm.Panels))
+			for i, p := range farm.Panels {
+				a.panels[i] = pendingPanel(p)
 			}
-			currentKey := panelCacheKey(a.cfg.Get())
+		}
+		next := clonePanelStatus(a.panels)
+		for _, p := range next {
+			p["refreshing"] = true
+		}
+		a.panels = next
+		go func() {
+			a.bridge.PanelStatusEach(func(i int, p map[string]any) {
+				currentKey := panelCacheKey(a.cfg.Get())
+				a.cacheMu.Lock()
+				defer a.cacheMu.Unlock()
+				if a.panelEpoch != epoch || a.panelKey != key || key != currentKey || i >= len(a.panels) {
+					return
+				}
+				next := append([]map[string]any{}, a.panels...)
+				item := clonePanelValue(p).(map[string]any)
+				item["refreshing"] = false
+				next[i] = item
+				a.panels = next
+			})
 			a.cacheMu.Lock()
 			defer a.cacheMu.Unlock()
 			defer close(done)
 			a.panelsLoading = nil
-			if a.panelEpoch == epoch && a.panelKey == key && key == currentKey {
-				a.panels = panels
-				a.panelAt = at
+			if a.panelEpoch == epoch && a.panelKey == key {
+				a.panelAt = time.Now()
 			}
 		}()
 	}
-	cold := a.panels == nil
+	cold := a.panelAt.IsZero()
 	done := a.panelsLoading
 	a.cacheMu.Unlock()
 	if done != nil {
@@ -124,7 +142,7 @@ func (a *Admin) panelsCached() []map[string]any {
 	a.cacheMu.Lock()
 	snapshot := a.panels
 	refreshing := a.panelsLoading != nil
-	at := a.panelAt
+
 	a.cacheMu.Unlock()
 	if snapshot == nil {
 		out := make([]map[string]any, 0, len(farm.Panels))
@@ -135,8 +153,11 @@ func (a *Admin) panelsCached() []map[string]any {
 	}
 	out := clonePanelStatus(snapshot)
 	for _, p := range out {
-		p["refreshing"] = refreshing
-		p["stale"] = time.Since(at) > 5*time.Second
+		if !refreshing {
+			p["refreshing"] = false
+		}
+		checked, _ := p["checkedAt"].(int64)
+		p["stale"] = checked > 0 && time.Since(time.UnixMilli(checked)) > 5*time.Second
 	}
 	return out
 }
@@ -151,4 +172,8 @@ func (a *Admin) sourceStatus() map[string]any {
 	a.cacheMu.Lock()
 	defer a.cacheMu.Unlock()
 	return map[string]any{"accountsAt": max(int64(0), a.botsAt.UnixMilli()), "accountsError": a.botsError, "accountsStale": a.botsAt.IsZero() || a.botsError != "", "accountsRefreshing": a.botsLoading != nil, "panelsAt": max(int64(0), a.panelAt.UnixMilli()), "panelsRefreshing": a.panelsLoading != nil}
+}
+
+func pendingPanel(p Panel) map[string]any {
+	return map[string]any{"label": p.Label, "baseUrl": p.BaseURL, "mode": p.mode(), "username": p.Username, "hasCode": p.AccessCode != "", "hasPassword": p.Password != "", "hasToken": p.Token != "", "hasAuth": p.hasAuth(), "checking": true, "refreshing": true, "checkedAt": int64(0), "ok": false, "error": "", "accounts": []any{}}
 }

@@ -50,14 +50,15 @@ type PushTask struct {
 	cancel      chan struct{}
 }
 type Operations struct {
-	mu      sync.Mutex
-	saveMu  sync.Mutex
-	routing Routing
-	daily   map[string]DailyCount
-	tasks   []*PushTask
-	sem     chan struct{}
-	path    string
-	bridge  *Bridge
+	revision uint64
+	mu       sync.Mutex
+	saveMu   sync.Mutex
+	routing  Routing
+	daily    map[string]DailyCount
+	tasks    []*PushTask
+	sem      chan struct{}
+	path     string
+	bridge   *Bridge
 }
 
 func newOperations(b *Bridge) *Operations {
@@ -130,6 +131,9 @@ func (o *Operations) save() error {
 	return writePrivateFile(o.path, append(data, '\n'))
 }
 func (o *Operations) saveLogged() {
+	o.mu.Lock()
+	o.revision++
+	o.mu.Unlock()
 	if err := o.save(); err != nil {
 		logf("任务与统计保存失败：%v", err)
 	}
@@ -617,4 +621,30 @@ func (o *Operations) completeWaiting(bot Bot, index int) {
 	if changed {
 		o.saveLogged()
 	}
+}
+
+// Summary avoids copying all retained task details for every page refresh.
+func (o *Operations) Summary() map[string]any {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	active, failed, retries := 0, 0, 0
+	var next, updated int64
+	for _, t := range o.tasks {
+		if taskActive(t.Status) {
+			active++
+		}
+		if t.Status == "failed" || t.Status == "interrupted" {
+			failed++
+		}
+		if t.Status == "retry_wait" {
+			retries++
+			if next == 0 || t.NextAt < next {
+				next = t.NextAt
+			}
+		}
+		if t.UpdatedAt > updated {
+			updated = t.UpdatedAt
+		}
+	}
+	return map[string]any{"active": active, "failed": failed, "total": len(o.tasks), "retries": retries, "nextRetryAt": next, "updatedAt": updated, "revision": o.revision}
 }

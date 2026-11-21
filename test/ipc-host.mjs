@@ -282,6 +282,14 @@ await fetch(BASE+'/api/history_clear',{method:'POST'})
 const afterClear=await call('/api/state')
 summarize('清空历史不重置今日累计',afterClear.stats.todayOk===beforeDaily&&afterClear.history.length===0,'')
 
+await waitForTasksIdle()
+const compactState=await call('/api/state?view=accounts')
+summarize('账号页面只返回任务摘要',!('tasks' in compactState)&&!('history' in compactState)&&!('retries' in compactState)&&Number.isInteger(compactState.task_summary?.total),'')
+const explicitTasks=await call('/api/tasks')
+summarize('任务详情仍可按需读取',Array.isArray(explicitTasks.tasks)&&explicitTasks.tasks.length===compactState.task_summary.total,'')
+const unknownView=await fetch(BASE+'/api/state?view=unknown')
+summarize('非法页面类型被拒绝',unknownView.status===400,'')
+
 // Re-enter a fresh configuration snapshot with a deliberately slow read-only panel.
 await waitForTasksIdle()
 await waitFor(async()=>{const s=await call('/api/state');return !s.sources?.panelsRefreshing})

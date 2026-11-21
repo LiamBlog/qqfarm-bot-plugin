@@ -72,7 +72,8 @@ func (a *Admin) allowed(r *http.Request) bool {
 	return true
 }
 
-func (a *Admin) state(historyLimit int) map[string]any {
+func (a *Admin) state(historyLimit int) map[string]any { return a.stateView(historyLimit, "") }
+func (a *Admin) stateView(historyLimit int, view string) map[string]any {
 	farm := a.cfg.Get()
 	remarks := loadRemarks(a.dataDir)
 	now := time.Now().UnixMilli()
@@ -122,12 +123,14 @@ func (a *Admin) state(historyLimit int) map[string]any {
 	}
 
 	history := []Activity{}
-	for _, item := range a.bridge.History(historyLimit) {
-		history = append(history, item)
+	if view == "" {
+		for _, item := range a.bridge.History(historyLimit) {
+			history = append(history, item)
+		}
 	}
 	nextRefresh, nextStale, nextRepair := a.bridge.Schedule()
 
-	return map[string]any{
+	result := map[string]any{
 		"version":     version,
 		"plugin_id":   pluginID,
 		"instance_id": instanceID,
@@ -146,16 +149,25 @@ func (a *Admin) state(historyLimit int) map[string]any {
 			"activePanel":    farm.ActivePanel,
 			"panels":         panelMeta,
 		},
-		"accounts": accounts,
-		"panels":   panels,
-		"retries":  a.bridge.RetryQueue(),
-		"stats":    a.bridge.ops.Stats(),
-		"routing":  a.bridge.ops.Routing(),
-		"tasks":    a.bridge.ops.Tasks(),
-		"sources":  a.sourceStatus(),
-		"history":  history,
-		"now":      now,
+		"accounts":     accounts,
+		"panels":       panels,
+		"retries":      nil,
+		"stats":        a.bridge.ops.Stats(),
+		"routing":      a.bridge.ops.Routing(),
+		"task_summary": a.bridge.ops.Summary(),
+		"sources":      a.sourceStatus(),
+		"history":      history,
+		"now":          now,
 	}
+	if view == "" {
+		result["tasks"] = a.bridge.ops.Tasks()
+		result["retries"] = a.bridge.RetryQueue()
+	} else {
+		result["view"] = view
+		delete(result, "history")
+		delete(result, "retries")
+	}
+	return result
 }
 
 func (a *Admin) handler(w http.ResponseWriter, r *http.Request) { a.serve(w, r, true) }
@@ -231,7 +243,14 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 		if limit > 200 {
 			limit = 200
 		}
-		jsonOut(200, a.state(limit))
+		view := r.URL.Query().Get("view")
+		switch view {
+		case "", "accounts", "panels", "activity", "settings":
+		default:
+			jsonOut(400, map[string]any{"error": "无效的页面类型"})
+			return
+		}
+		jsonOut(200, a.stateView(limit, view))
 
 	case r.URL.Path == "/api/push" && r.Method == http.MethodPost:
 		body := readBody()

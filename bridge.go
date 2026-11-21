@@ -1070,7 +1070,10 @@ func (b *Bridge) TestPanel(index int) (map[string]any, error) {
 	}, nil
 }
 
-func (b *Bridge) PanelStatus() []map[string]any {
+func (b *Bridge) PanelStatus() []map[string]any { return b.PanelStatusEach(nil) }
+
+// Each completed panel is published without waiting for slower peers.
+func (b *Bridge) PanelStatusEach(publish func(int, map[string]any)) []map[string]any {
 	b.cfg.operationMu.RLock()
 	defer b.cfg.operationMu.RUnlock()
 	panels := b.Panels()
@@ -1082,7 +1085,13 @@ func (b *Bridge) PanelStatus() []map[string]any {
 			defer wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
-					out[i] = map[string]any{"label": panel.Label, "ok": false, "error": fmt.Sprintf("panic: %v", r), "accounts": []any{}}
+					out[i] = map[string]any{"label": panel.Label, "baseUrl": panel.BaseURL, "ok": false, "error": "检测异常，请重新检测或查看日志", "failureKind": "unknown", "failureHint": "检测异常，请重新检测或查看日志", "accounts": []any{}}
+				}
+				if out[i] != nil {
+					out[i]["checkedAt"] = time.Now().UnixMilli()
+					if publish != nil {
+						publish(i, out[i])
+					}
 				}
 			}()
 			item := map[string]any{
@@ -1156,6 +1165,10 @@ func (b *Bridge) PanelStatus() []map[string]any {
 			}
 			if msg, ok := item["authError"].(string); ok {
 				item["authError"] = b.redact(msg)
+			}
+			if err != nil {
+				kind, hint := classifyPanelFailure(err, item["authBlocked"] == true, panel.hasAuth())
+				item["failureKind"], item["failureHint"] = kind, hint
 			}
 			out[i] = item
 		}(i, panel)
