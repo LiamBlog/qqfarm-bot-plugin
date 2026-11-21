@@ -15,7 +15,7 @@ const history=[{time:now,type:'attempt',message:'10001 → 主面板：推送成
  await page.locator('#tab-activity').click();await page.locator('[data-cancel-task]').click();assert(calls.some(c=>c.path==='/api/tasks/cancel'&&c.body.id==='waiting-1'));await page.locator('#retryFailed').click();assert(calls.some(c=>c.path==='/api/tasks/retry'&&c.body.id==='failed-1'));assert(!calls.some(c=>c.path==='/api/tasks/retry'&&c.body.id==='waiting-1'));await page.locator('#histAccount').fill('10001');await page.locator('#histOutcome').selectOption('success');await page.locator('#histFrom').fill('2026-11-01');await page.locator('#historyQuery button').click();await page.waitForTimeout(100);assert(calls.some(c=>c.path==='/api/history'&&c.query.includes('account=10001')&&c.query.includes('outcome=success')&&c.query.includes('from=2026-11-01')));await page.screenshot({path:path.join(out,'desktop-tasks.png'),fullPage:true});
  // Theme controls keep existing auto/light/dark behavior, with readable brand colors.
  await page.locator('#tab-accounts').click();
- assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()),'#6d5ef7');
+ assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()),'#5746d8');
  await page.locator('#btnTheme').click();await page.locator('#btnTheme').click();
  assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
  await page.screenshot({path:path.join(out,'desktop-dark.png'),fullPage:true});

@@ -130,22 +130,22 @@
 ## 构建
 
 ```bash
-bash build.sh                 # 默认版本 3.11.0，一次生成三个平台的 TAR.GZ 插件包
-bash build.sh 3.11.0 all       # Linux amd64 + Linux arm64 + Windows amd64
-bash build.sh 3.11.0 linux     # 仅 Linux 双架构
-bash build.sh 3.11.0 windows   # 仅 Windows amd64（bin/qqfarm-bot.exe）
-# 单平台：bash build.sh 3.11.0 amd64
+bash build.sh                 # 默认版本 3.12.0，一次生成三个平台的 TAR.GZ 插件包
+bash build.sh 3.12.0 all       # Linux amd64 + Linux arm64 + Windows amd64
+bash build.sh 3.12.0 linux     # 仅 Linux 双架构
+bash build.sh 3.12.0 windows   # 仅 Windows amd64（bin/qqfarm-bot.exe）
+# 单平台：bash build.sh 3.12.0 amd64
 ```
 
 构建要求：Go 1.25+、Bash，以及 `tar`、`sha256sum` 等常用命令。`CGO_ENABLED=0`（脚本已设置）；Linux 产物为静态链接 ELF，不依赖容器 glibc；Windows 产物为 PE 可执行文件。
 
 默认在 `dist/` 生成以下三个可导入插件包，每个包另附同名 `.tar.gz.sha256` 校验文件：
 
-| 平台 | 插件包（以 3.11.0 为例） |
+| 平台 | 插件包（以 3.12.0 为例） |
 | --- | --- |
-| Linux amd64 | `qqfarm-bot-ipc-plugin-linux-amd64-3.11.0.tar.gz` |
-| Linux arm64 | `qqfarm-bot-ipc-plugin-linux-arm64-3.11.0.tar.gz` |
-| Windows amd64 | `qqfarm-bot-ipc-plugin-windows-amd64-3.11.0.tar.gz` |
+| Linux amd64 | `qqfarm-bot-ipc-plugin-linux-amd64-3.12.0.tar.gz` |
+| Linux arm64 | `qqfarm-bot-ipc-plugin-linux-arm64-3.12.0.tar.gz` |
+| Windows amd64 | `qqfarm-bot-ipc-plugin-windows-amd64-3.12.0.tar.gz` |
 
 三个包均将 `mengka-plugin.json` 放在压缩包根目录，入口位于 `bin/`；Linux 入口保留执行权限。Windows 包要求萌卡 NT 3.0.7 或更高版本。GitHub Release 同样直接提供这三个 `.tar.gz` 插件包及校验文件。
 
@@ -166,7 +166,7 @@ node test/ipc-host.mjs
 
 ## 安装
 
-框架管理端 → 插件 → 导入 `dist/qqfarm-bot-ipc-plugin-linux-amd64-3.11.0.tar.gz`。插件 ID 未变，导入后会替换原实例，数据目录 `/data` 保留。
+框架管理端 → 插件 → 导入 `dist/qqfarm-bot-ipc-plugin-linux-amd64-3.12.0.tar.gz`。插件 ID 未变，导入后会替换原实例，数据目录 `/data` 保留。
 
 ## 卸载/回滚
 
@@ -190,7 +190,7 @@ node test/ipc-host.mjs
 go vet ./...
 go test ./...
 # 有 C 编译器的环境运行：go test -race ./...
-bash build.sh 3.11.0 amd64
+bash build.sh 3.12.0 amd64
 node test/ipc-host.mjs
 # UI 测试依赖仅用于开发，Linux/CI 使用 Chromium
 npm install --no-save playwright@1.62.1
@@ -201,10 +201,14 @@ QQFARM_BROWSER_CHANNEL=chromium node test/ui-regression.cjs
 UI 测试使用本地合成数据，IPC 联调使用模拟框架与面板，不连接真实 QQ 账号。
 
 
-## 管理端响应优化（3.11.0）
+## 管理端响应优化（3.12.0）
 
 移除 QQ 官方机器人接入及其依赖、设置和接口。慢面板检测移到后台，页面优先返回账号和缓存；同一数据源的并发读取合并为一次。检测中单独标识，隐藏页面暂停自动刷新，面板和诊断区域切换后再构建。
 
-## 分面板更新与按需读取（3.11.0）
+## 分面板更新与按需读取（3.12.0）
 
 各面板检测完成即发布结果。网页使用 `api/state?view=accounts|panels|activity|settings` 读取精简状态，任务摘要始终保留，任务中心通过 `api/tasks` 加载详情；不带 view 的旧接口仍返回完整状态。页面在检测中、任务执行中和空闲时分别按 2、3、30 秒刷新，失败时最多延长到 120 秒。面板异常和失败任务提供对应处理提示；中断任务先核实远端结果再确认重试。
+
+## 上线前界面与性能收尾（3.12.0）
+
+复用未变化的账号视图，等价刷新无需重复生成整张列表，筛选、排序、账号状态、面板同步状态及保鲜阈值变化会使其重新渲染。浅色与深色主题统一靛紫主色和语义状态色，设置页两栏对齐，手机操作尺寸及键盘焦点调整。备注取消正常退出，保存失败保留草稿。自动推送、IPC、路由、任务和原有设置保持兼容。

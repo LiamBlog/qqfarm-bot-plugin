@@ -1422,7 +1422,7 @@ function renderAccountCards(groups, s, emptyMsg){
       const plat=(a.platform||'').toLowerCase(), isAndroid=plat.includes('android')
       const codePills=syncMarkup(g,s)
       const pushBtn=a.online&&isAndroid
-        ? `<button class="mini-btn btnPush" data-self="${a.self_id}" data-proto="${a.protocol_id}" data-nick="${esc(a.nickname||'')}">${ICONS.upload}推送</button>`
+        ? `<button class="mini-btn btnPush" data-self="${a.self_id}" data-proto="${a.protocol_id}" data-nick="${esc(a.nickname||'')}" title="按上方推送目标创建任务">${ICONS.upload}推送</button>`
         : (a.online?'<span class="faint">协议不支持</span>':'')
       const cardKey=`${a.self_id}:${a.protocol_id}`
       const canSelect=a.online&&isAndroid
@@ -1592,6 +1592,13 @@ function renderDonut(online,total){
   set('donutPct', e => e.textContent = total?Math.round(online/total*100)+'%':'–')
 }
 
+let lastAccountViewKey=''
+function accountViewKey(s){
+ const cfg=s.config||{},now=Number(s.now)||Date.now(),limit=(Number(cfg.staleHours)>0?Number(cfg.staleHours):48)*3600000
+ const accounts=(s.accounts||[]).map(a=>[a.self_id,a.protocol_id,a.nickname,a.remark,a.online,a.platform,a.protocol_version,a.level,a.friend_count,a.group_count,a.code_age_ms==null?null:Math.round(now-a.code_age_ms),a.code_age_ms!=null&&a.code_age_ms>limit])
+ const panels=(s.panels||[]).map(p=>[p.baseUrl,p.ok,!!p.checking,(p.accounts||[]).map(a=>[a.uin??a.qq,a.running,a.hasCode,a.name,a.platform])])
+ return JSON.stringify([accounts,panels,cfg.enabled,cfg.activePanel,cfg.staleHours,cfg.panels,s.routing,accountMedia.matches,accFilter,accSort,accSortDir,$('search')?.value,$('groupFilter')?.value,[...selected].sort()])
+}
 function render(s){
   try {
     STATE=s
@@ -1655,6 +1662,8 @@ function render(s){
     set('accountCount', e=>e.textContent=allGroups.length+' 个账号 · '+s.accounts.length+' 个实例')
     renderDonut(online,allGroups.length)
 
+    const nextAccountViewKey=accountViewKey(s)
+    if(nextAccountViewKey!==lastAccountViewKey){
     /* 账号表：按 QQ 分组，同 QQ 的多协议实例共用账号单元格 */
     const kw=(($('search')?.value)||'').trim().toLowerCase()
     let groupList=allGroups.filter(g=>
@@ -1706,7 +1715,7 @@ function render(s){
           const farmCell=syncMarkup(g,s)
           const action=a.online
             ?(isAndroid
-              ?`<button class="mini-btn btnPush" data-self="${a.self_id}" data-proto="${a.protocol_id}" data-nick="${esc(a.nickname||'')}" title="推送到当前面板">${ICONS.upload}推送</button>`
+              ?`<button class="mini-btn btnPush" data-self="${a.self_id}" data-proto="${a.protocol_id}" data-nick="${esc(a.nickname||'')}" title="按上方推送目标创建任务">${ICONS.upload}推送</button>`
               :'<span class="faint" title="仅 Android 协议支持农场 Code">协议不支持</span>')
             :'<span class="faint">—</span>'
           const rowKey=`${a.self_id}:${a.protocol_id}`
@@ -1748,7 +1757,7 @@ function render(s){
             val?selected.add(c.dataset.key):selected.delete(c.dataset.key)
           }
           lastCheckIdx=idx
-          updateBulk()
+      
         }
       })
       tb.querySelectorAll('.btnPush').forEach(b=>b.onclick=()=>pushOne(b))
@@ -1764,6 +1773,12 @@ function render(s){
     /* Only build the currently visible account representation. */
     if(accountMedia.matches)renderAccountCards(groupList,s,emptyMsg)
     else setHTML('accountCards','')
+    updateBulk()
+
+      const root=accountMedia.matches?$('accountCards'):$('accounts')
+      // Do not mark a deferred edit as rendered. Reconcile when the editor closes.
+      if(!root?.contains(document.activeElement)||!document.activeElement.matches('input,textarea'))lastAccountViewKey=nextAccountViewKey
+    }
     updateBulk()
 
     /* 动态流 */
@@ -2109,16 +2124,23 @@ function initRemark(cell){
   txt.onclick=e=>{ e.stopPropagation(); open() }
   function open(){
     if(cell.querySelector('input')) return
+    lastAccountViewKey='';accountHTML.delete(cell.closest('#accounts')||cell.closest('#accountCards'))
     const current=txt.querySelector('.add')?'':txt.textContent
     cell.innerHTML=`<input type="text" maxlength="20" value="${esc(current)}" placeholder="备注">
       <span class="ok" title="保存">${ICONS.ok}</span><span class="no" title="取消">${ICONS.err}</span>`
     const input=cell.querySelector('input')
     input.focus(); input.select()
+    let saving=false
     const done=async(save)=>{
+      if(saving)return
       const value=input.value.trim()
-      if(!save){ render(STATE); return }
-      try{ await post('api/remarks',{self_id:Number(selfId),remark:value}); toast(value?'备注已保存':'备注已清除') }
-      catch(e){ toast('备注保存失败：'+e.message,false); render(STATE) }
+      if(!save){input.blur();lastAccountViewKey='';render(STATE);return}
+      saving=true;input.readOnly=true
+      try{
+        await post('api/remarks',{self_id:Number(selfId),remark:value})
+        input.blur();lastAccountViewKey='';render(STATE);toast(value?'备注已保存':'备注已清除')
+      }catch(e){toast('备注保存失败：'+e.message,false);input.readOnly=false;input.focus()}
+      finally{saving=false}
     }
     cell.querySelector('.ok').onclick=()=>done(true)
     cell.querySelector('.no').onclick=()=>done(false)

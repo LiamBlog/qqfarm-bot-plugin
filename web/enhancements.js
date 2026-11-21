@@ -41,7 +41,6 @@ function renderEnhancements(s){
  setSelectOptions('pushTarget','<option value="route">按账号 / 分组路由</option><option value="all">推送到全部面板</option>'+panelOptions(s));setSelectOptions('histPanel','<option value="">全部面板</option>'+panelOptions(s));
  $('targetHint').textContent=`默认面板：${panels[s.config?.activePanel||0]?.label||'尚未配置'}`;
  document.querySelector('.stat[data-stat="activity"]').title=s.stats?.definition||'查看今日推送记录';syncFilterSummary();
- document.querySelectorAll('#accounts .btnPush,#accountCards .btnPush').forEach(b=>{b.title='按上方推送目标创建任务'});
  renderTaskSummary(s);if(document.body.dataset.tab==='activity'){if(Array.isArray(s.tasks))renderTasks(s);else refreshTasks()};if(!routingDirty)renderRouting(s);
  if(document.body.dataset.tab==='activity'&&Date.now()-lastHistoryRefresh>10000)refreshHistory();
  syncDisabledSettings();
@@ -66,7 +65,7 @@ function renderTaskSummary(s){
  const tasks=Array.isArray(s.tasks)?s.tasks:taskDetails,active=tasks.filter(t=>['queued','running','retry_wait'].includes(t.status)),failed=tasks.filter(t=>['failed','interrupted'].includes(t.status));
  const summary=s.task_summary||{active:active.length,failed:failed.length,total:tasks.length};
  $('taskCount').textContent=summary.active;$('tabCntActivity').textContent=summary.active?summary.active+' 待处理':summary.total;$('taskSummary').textContent=summary.active+' 进行中 · '+summary.failed+' 失败或中断 · '+summary.total+' 项（最多保留 1,000 项）';$('retryFailed').disabled=!summary.failed||(!Array.isArray(s.tasks)&&taskDetailsRevision!==taskRevision(s));
- $('retryHint').innerHTML=summary.active?'<button class="mini-btn" id="openTasks">'+summary.active+' 项任务正在处理 · 打开任务中心</button>':'';set('openTasks',b=>b.onclick=()=>showTab('activity'));
+ const retryHTML=summary.active?'<button class="mini-btn" id="openTasks">'+summary.active+' 项任务正在处理 · 打开任务中心</button>':'';setHTML('retryHint',retryHTML);set('openTasks',b=>b.onclick=()=>showTab('activity'));
  return{tasks,active,failed}
 }
 function taskFailureHelp(t){

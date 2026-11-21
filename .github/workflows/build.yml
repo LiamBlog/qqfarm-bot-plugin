@@ -46,12 +46,14 @@ jobs:
           QQFARM_PERF_OUTPUT: test-results/ui-performance
           QQFARM_UI_SPEED_OUTPUT: test-results/ui-speed
           QQFARM_UI_ADAPTIVE_OUTPUT: test-results/ui-adaptive
+          QQFARM_UI_FINAL_OUTPUT: test-results/ui-release
         run: |
           node test/ui-regression.cjs
           node test/ui-bugs.cjs
           node test/ui-performance.cjs
           node test/ui-speed.cjs
           node test/ui-adaptive.cjs
+          node test/ui-release.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -62,6 +64,7 @@ jobs:
             test-results/ui-performance
             test-results/ui-speed
             test-results/ui-adaptive
+            test-results/ui-release
           if-no-files-found: ignore
 
   package:
