@@ -2015,7 +2015,7 @@ async function panelAction(act, i){
   if(act==='active'){ await savePanels(meta,i); toast('已切换推送目标') }
   if(act==='del'){
     if(meta.length<=1) return toast('至少保留 1 个面板',false)
-    const p=meta[i]; if(!confirm(`删除面板「${p.label}」？`)) return
+    const p=meta[i]; if(!await confirmAction(`删除面板「${p.label}」？`,{title:'删除面板',confirmText:'删除面板',danger:true})) return
     const next=meta.filter((_,x)=>x!==i)
     await savePanels(next,Math.min(STATE.config.activePanel,next.length-1)); toast('面板已删除')
   }
@@ -2246,7 +2246,7 @@ set('cfgFile', input=>input.onchange=async ()=>{
     const data=JSON.parse(await file.text())
     const panels=data?.farm?.panels
     if(!Array.isArray(panels)||!panels.length) throw new Error('文件里没有有效面板')
-    if(!confirm(`导入配置将覆盖当前设置（${panels.length} 个面板；访问 Code / 密码 / Token 未带时，仅在地址与用户名一致时沿用现有值）。继续？`)) return
+    if(!await confirmAction(`导入配置将覆盖当前设置（${panels.length} 个面板；访问 Code / 密码 / Token 未带时，仅在地址与用户名一致时沿用现有值）。继续？`,{title:'导入配置确认',confirmText:'覆盖并导入',danger:true})) return
     const j=await post('api/config/import',data)
     if(j.state){ STATE=j.state; render(STATE) }
     const needPass=(j.state?.config?.panels||[]).some(p=>p.mode==='admin'&&!p.hasPassword)
@@ -2294,7 +2294,7 @@ document.querySelectorAll('#histFilters .hf-btn').forEach(btn => btn.onclick=()=
   if(STATE) render(STATE)
 })
 set('btnHistClear', b => b.onclick=async ()=>{
-  if(!confirm('清空全部动态记录？（推送时间统计不受影响）')) return
+  if(!await confirmAction('清空全部动态记录？（推送时间统计不受影响）',{title:'清空动态记录',confirmText:'清空记录',danger:true})) return
   try{ await post('api/history_clear',{}); toast('动态流已清空') }
   catch(e){ toast('清空失败：'+e.message,false) }
 })

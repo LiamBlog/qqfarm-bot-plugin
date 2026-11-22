@@ -6,6 +6,19 @@
 
 ## 版本记录
 
+### 3.12.2 · 2026-11-22
+- 优化桌面和手机端操作确认提示：桌面居中、手机底部展示，浅色／深色主题统一。
+- 长提示自动换行并在正文区域滚动；取消按钮默认获得焦点，支持 Esc／点击遮罩取消及关闭后焦点恢复。
+- 推送、批量操作、删除和重试中断等确认使用统一弹窗；取消后不提交操作。
+- 补齐 README 的 3.12.1 记录，更新 3.12.2 说明和构建示例。
+- [GitHub Release v3.12.2](https://github.com/LiamBlog/qqfarm-bot-plugin/releases/tag/v3.12.2)
+
+### 3.12.1 · 2026-11-21
+- 修复并发保存账号备注时可能覆盖其他更新的问题，为备注文件的读取、修改和写入增加串行保护；新增 64 路并发回归测试。
+- 修正跨平台打包时 Linux 插件入口的可执行权限标记，避免 Windows 构建环境产物丢失执行位。
+- 插件 ID、IPC 协议、配置格式及现有账号和路由数据保持兼容。
+- [GitHub Release v3.12.1](https://github.com/LiamBlog/qqfarm-bot-plugin/releases/tag/v3.12.1)
+
 ### 3.7.27
 - 品牌标识统一：顶栏、侧栏、问候卡的 logo/头像收敛到 `--brand-grad` 单一变量，此前顶栏与侧栏渐变不一致
 - 三处品牌标记补内高光描边，与主按钮、卡片既有质感语言对齐
@@ -130,11 +143,11 @@
 ## 构建
 
 ```bash
-bash build.sh                 # 默认版本 3.12.1，一次生成三个平台的 TAR.GZ 插件包
-bash build.sh 3.12.1 all       # Linux amd64 + Linux arm64 + Windows amd64
-bash build.sh 3.12.1 linux     # 仅 Linux 双架构
-bash build.sh 3.12.1 windows   # 仅 Windows amd64（bin/qqfarm-bot.exe）
-# 单平台：bash build.sh 3.12.1 amd64
+bash build.sh                 # 默认版本 3.12.2，一次生成三个平台的 TAR.GZ 插件包
+bash build.sh 3.12.2 all       # Linux amd64 + Linux arm64 + Windows amd64
+bash build.sh 3.12.2 linux     # 仅 Linux 双架构
+bash build.sh 3.12.2 windows   # 仅 Windows amd64（bin/qqfarm-bot.exe）
+# 单平台：bash build.sh 3.12.2 amd64
 ```
 
 构建要求：Go 1.25+、Bash，以及 `tar`、`gzip`、`sha256sum` 等常用命令。`CGO_ENABLED=0`（脚本已设置）；Linux 产物为静态链接 ELF，不依赖容器 glibc；Windows 产物为 PE 可执行文件。
@@ -190,7 +203,7 @@ node test/ipc-host.mjs
 go vet ./...
 go test ./...
 # 有 C 编译器的环境运行：go test -race ./...
-bash build.sh 3.12.1 amd64
+bash build.sh 3.12.2 amd64
 node test/ipc-host.mjs
 # UI 测试依赖仅用于开发，Linux/CI 使用 Chromium
 npm install --no-save playwright@1.62.1
