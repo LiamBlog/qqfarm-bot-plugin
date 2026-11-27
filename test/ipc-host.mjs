@@ -26,6 +26,7 @@ let failAll = false
 let postCount = 0
 let forcedCode = ''
 let accountReadDelay=0
+let frameworkBotOnline = true
 let hello = null
 let actions = 0
 
@@ -120,7 +121,7 @@ readline.createInterface({ input: child.stdout }).on('line', line => {
     if (msg.action === 'get_bot_list') {
       return send({
         type: 'action_result', id: msg.id, ok: true, data: [
-          { self_id: 10001, nickname: 'MockBot', online: true, level: 42, friend_count: 10, group_count: 3, protocol: { id: 0, platform: 'android', version: '8.9.63' } },
+          { self_id: 10001, nickname: 'MockBot', online: frameworkBotOnline, level: 42, friend_count: 10, group_count: 3, protocol: { id: 0, platform: 'android', version: '8.9.63' } },
           { self_id: 10002, nickname: 'MockPC', online: true, protocol: { id: 1, platform: 'windows' } },
         ],
       })
@@ -147,10 +148,24 @@ summarize('旧版单面板配置自动迁移', state?.config?.panels?.length ===
 await delay(1500)
 summarize('启动推送已写入面板', farmAccounts.some(a => String(a.qq) === '10001' && a.code !== 'OLD_CODE'), farmAccounts.find(a => a.qq === '10001')?.code?.slice(0, 24) || '')
 
+await waitForTasksIdle()
+const beforeOnline = await fetch(`${BASE}/api/state`).then(r => r.json())
+const automaticTasksBefore = beforeOnline.tasks.filter(t => t.source === 'automatic' && t.self_id === 10001 && t.protocol_id === 0).length
+const postsBeforeOnline = postCount
+forcedCode = 'FARM_CODE_AFTER_LOGIN'
+frameworkBotOnline = false
+setTimeout(() => { frameworkBotOnline = true }, 450)
 send({ type: 'event', data: { post_type: 'bot_online', self_id: 10001, protocol_id: 0 } })
-await delay(1500)
-const afterOnline = await fetch(`${BASE}/api/state`).then(r => r.json()).catch(() => null)
-summarize('bot_online 触发推送并记录动态', afterOnline?.history?.some(h => h.type === 'push' && String(h.message).includes('10001')), '')
+send({ type: 'event', data: { post_type: 'bot_online', self_id: 10001, protocol_id: 0 } })
+const onlinePushReady = await waitFor(async () => {
+  const current = await fetch(`${BASE}/api/state`).then(r => r.json())
+  const tasks = current.tasks.filter(t => t.source === 'automatic' && t.self_id === 10001 && t.protocol_id === 0)
+  return tasks.length === automaticTasksBefore + 1 && tasks.some(t => t.status === 'succeeded' && t.created_at > beforeOnline.now)
+})
+const afterOnline = await fetch(`${BASE}/api/state`).then(r => r.json())
+const onlineTasks = afterOnline.tasks.filter(t => t.source === 'automatic' && t.self_id === 10001 && t.protocol_id === 0)
+summarize('bot_online 等待框架账号状态刷新后自动推送最新 Code', onlinePushReady && farmAccounts.find(a => a.qq === '10001')?.code === forcedCode && postCount === postsBeforeOnline + 1, `tasks=${onlineTasks.length - automaticTasksBefore}; posts=${postCount - postsBeforeOnline}`)
+summarize('重复 bot_online 事件合并为一条自动任务', onlineTasks.length === automaticTasksBefore + 1, `automatic tasks=${onlineTasks.length}`)
 
 const pushAll = await fetch(`${BASE}/api/push_all`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).then(r => r.json()).catch(() => null)
 summarize('管理端推送全部', pushAll?.ok === true && Array.isArray(pushAll.results) && pushAll.results.length === 1, `results=${pushAll?.results?.length}`)

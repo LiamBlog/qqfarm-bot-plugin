@@ -478,15 +478,19 @@ func (o *Operations) Retry(id string) (string, error) {
 	}
 	return "", errors.New("任务不存在")
 }
-func (b *Bridge) QueueAutomatic(bot Bot) {
+func (b *Bridge) QueueAutomatic(bot Bot) int {
 	if b.ops == nil {
-		return
+		return 0
 	}
+	queued := 0
 	for _, base := range b.ops.Targets(bot, true) {
 		if _, err := b.ops.Enqueue(bot, base, "automatic", 0); err != nil {
 			logf("自动任务创建失败：%v", err)
+		} else {
+			queued++
 		}
 	}
+	return queued
 }
 func (b *Bridge) PushAutomaticAll() {
 	bots, err := b.botList()

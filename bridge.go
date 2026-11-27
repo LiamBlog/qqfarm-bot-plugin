@@ -71,13 +71,14 @@ type Bridge struct {
 	dataDir        string
 	client         *http.Client
 
-	mu           sync.Mutex
-	stateMu      sync.Mutex
-	tokens       map[int]string
-	activity     []Activity
-	pushTimes    map[string]int64
-	lastAutoPush map[string]int64
-	panelState   map[string]bool
+	mu                  sync.Mutex
+	stateMu             sync.Mutex
+	tokens              map[int]string
+	activity            []Activity
+	pushTimes           map[string]int64
+	lastAutoPush        map[string]int64
+	onlineEventInFlight map[string]bool
+	panelState          map[string]bool
 
 	loginMu     sync.Mutex
 	loginFail   map[int]loginFailure
@@ -107,22 +108,23 @@ type Bridge struct {
 func newBridge(cfg *Config, ipc *IPC, dataDir string) *Bridge {
 	jar, _ := cookiejar.New(nil)
 	b := &Bridge{
-		cfg:          cfg,
-		ipc:          ipc,
-		dataDir:      dataDir,
-		client:       &http.Client{Timeout: 8 * time.Second, Jar: jar},
-		tokens:       map[int]string{},
-		pushTimes:    map[string]int64{},
-		lastAutoPush: map[string]int64{},
-		panelState:   map[string]bool{},
-		loginFail:    map[int]loginFailure{},
-		authBlocked:  map[int]string{},
-		panelWarn:    map[string]string{},
-		pushing:      map[string]bool{},
-		retrying:     map[string]bool{},
-		retryInfo:    map[string]map[string]any{},
-		panelFails:   map[string]int{},
-		alertOn:      map[string]bool{},
+		cfg:                 cfg,
+		ipc:                 ipc,
+		dataDir:             dataDir,
+		client:              &http.Client{Timeout: 8 * time.Second, Jar: jar},
+		tokens:              map[int]string{},
+		pushTimes:           map[string]int64{},
+		lastAutoPush:        map[string]int64{},
+		onlineEventInFlight: map[string]bool{},
+		panelState:          map[string]bool{},
+		loginFail:           map[int]loginFailure{},
+		authBlocked:         map[int]string{},
+		panelWarn:           map[string]string{},
+		pushing:             map[string]bool{},
+		retrying:            map[string]bool{},
+		retryInfo:           map[string]map[string]any{},
+		panelFails:          map[string]int{},
+		alertOn:             map[string]bool{},
 	}
 	b.loadState()
 	b.ops = newOperations(b)
@@ -1179,8 +1181,18 @@ func (b *Bridge) PanelStatusEach(publish func(int, map[string]any)) []map[string
 
 /* ---------- 事件与定时任务 ---------- */
 
+const (
+	onlineEventCheckAttempts = 6
+	onlineEventCheckInterval = 300 * time.Millisecond
+	onlineEventCheckTimeout  = 5 * time.Second
+)
+
 func (b *Bridge) botList() ([]Bot, error) {
-	data, err := b.ipc.call("get_bot_list", map[string]any{})
+	return b.botListContext(context.Background())
+}
+
+func (b *Bridge) botListContext(ctx context.Context) ([]Bot, error) {
+	data, err := b.ipc.callContext(ctx, "get_bot_list", map[string]any{})
 	if err != nil {
 		return nil, err
 	}
@@ -1201,20 +1213,74 @@ func (b *Bridge) botList() ([]Bot, error) {
 func (b *Bridge) OnBotOnline(event map[string]any) {
 	selfID := int64(toFloat(event["self_id"]))
 	protoID := int64(toFloat(event["protocol_id"]))
-	bots, err := b.botList()
-	if err != nil {
-		logf("上线事件处理失败（QQ %d）：%v", selfID, err)
+	key := fmt.Sprintf("%d:%d", selfID, protoID)
+	farm := b.cfg.Get()
+	b.mu.Lock()
+	if b.onlineEventInFlight == nil {
+		b.onlineEventInFlight = map[string]bool{}
+	}
+	if b.onlineEventInFlight[key] {
+		b.mu.Unlock()
 		return
 	}
-	var me *Bot
-	for i := range bots {
-		if bots[i].SelfID == selfID && bots[i].ProtocolID == protoID {
-			me = &bots[i]
+	if farm.Enabled && farm.PushOnLogin && time.Now().UnixMilli()-b.lastAutoPush[key] < 60_000 {
+		b.mu.Unlock()
+		logf("QQ %d（协议 %d）60 秒内已自动推送过，跳过", selfID, protoID)
+		return
+	}
+	b.onlineEventInFlight[key] = true
+	b.mu.Unlock()
+	defer func() {
+		b.mu.Lock()
+		delete(b.onlineEventInFlight, key)
+		b.mu.Unlock()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), onlineEventCheckTimeout)
+	defer cancel()
+	var me Bot
+	found, online := false, false
+	var lastErr error
+	for attempt := 0; attempt < onlineEventCheckAttempts; attempt++ {
+		found = false
+		bots, err := b.botListContext(ctx)
+		if err != nil {
+			lastErr = err
+		} else {
+			lastErr = nil
+			for i := range bots {
+				if bots[i].SelfID == selfID && bots[i].ProtocolID == protoID {
+					me = bots[i]
+					found = true
+					break
+				}
+			}
+			if found && me.Online {
+				online = true
+				break
+			}
+		}
+		if ctx.Err() != nil {
 			break
 		}
+		if attempt+1 < onlineEventCheckAttempts {
+			select {
+			case <-ctx.Done():
+				break
+			case <-time.After(onlineEventCheckInterval):
+			}
+		}
 	}
-	if me == nil {
-		logf("QQ %d（协议 %d）未在账号列表找到，忽略上线事件", selfID, protoID)
+	if lastErr != nil {
+		logf("上线事件处理失败（QQ %d）：%v", selfID, lastErr)
+		return
+	}
+	if !found {
+		logf("QQ %d（协议 %d）上线后仍未出现在账号列表，忽略事件", selfID, protoID)
+		return
+	}
+	if !online {
+		logf("QQ %d（协议 %d）上线状态未确认，跳过自动推送", selfID, protoID)
 		return
 	}
 	if !me.isAndroid() {
@@ -1223,7 +1289,6 @@ func (b *Bridge) OnBotOnline(event map[string]any) {
 	}
 	b.appendActivity(Activity{Time: time.Now().UnixMilli(), Type: "online", SelfID: strconv.FormatInt(selfID, 10), ProtocolID: protoID, Message: fmt.Sprintf("QQ %d（协议 %d）上线", selfID, protoID)})
 
-	farm := b.cfg.Get()
 	if !farm.Enabled || !farm.PushOnLogin {
 		return
 	}
@@ -1232,24 +1297,15 @@ func (b *Bridge) OnBotOnline(event map[string]any) {
 		logf("尚未配置面板，跳过自动推送")
 		return
 	}
-	if !me.Online {
-		logf("QQ %d 已离线，跳过推送", selfID)
+	queued := b.QueueAutomatic(me)
+	if queued == 0 {
+		logf("QQ %d（协议 %d）没有符合自动路由的面板，跳过推送", selfID, protoID)
 		return
 	}
-	key := fmt.Sprintf("%d:%d", selfID, protoID)
-	now := time.Now().UnixMilli()
 	b.mu.Lock()
-	last := b.lastAutoPush[key]
-	if now-last < 60_000 {
-		b.mu.Unlock()
-		logf("QQ %d（协议 %d）60 秒内已自动推送过，跳过", selfID, protoID)
-		return
-	}
-	b.lastAutoPush[key] = now
+	b.lastAutoPush[key] = time.Now().UnixMilli()
 	b.mu.Unlock()
-
-	b.QueueAutomatic(*me)
-	logf("farm-bot 自动任务已排队：QQ %d", selfID)
+	logf("farm-bot 自动任务已排队：QQ %d（%d 项）", selfID, queued)
 }
 
 func (b *Bridge) OnBotOffline(event map[string]any) {
