@@ -147,7 +147,7 @@ func (a *Admin) panelsCached() []map[string]any {
 	if snapshot == nil {
 		out := make([]map[string]any, 0, len(farm.Panels))
 		for _, p := range farm.Panels {
-			out = append(out, map[string]any{"label": p.Label, "baseUrl": p.BaseURL, "mode": p.mode(), "username": p.Username, "hasCode": p.AccessCode != "", "hasPassword": p.Password != "", "hasToken": p.Token != "", "hasAuth": p.hasAuth(), "checking": true, "refreshing": refreshing, "checkedAt": int64(0), "ok": false, "error": "", "accounts": []any{}})
+			out = append(out, map[string]any{"label": p.Label, "baseUrl": p.BaseURL, "priority": p.Priority, "mode": p.mode(), "username": p.Username, "hasCode": p.AccessCode != "", "hasPassword": p.Password != "", "hasToken": p.Token != "", "hasAuth": p.hasAuth(), "checking": true, "refreshing": refreshing, "checkedAt": int64(0), "ok": false, "error": "", "accounts": []any{}})
 		}
 		return out
 	}
@@ -175,5 +175,5 @@ func (a *Admin) sourceStatus() map[string]any {
 }
 
 func pendingPanel(p Panel) map[string]any {
-	return map[string]any{"label": p.Label, "baseUrl": p.BaseURL, "mode": p.mode(), "username": p.Username, "hasCode": p.AccessCode != "", "hasPassword": p.Password != "", "hasToken": p.Token != "", "hasAuth": p.hasAuth(), "checking": true, "refreshing": true, "checkedAt": int64(0), "ok": false, "error": "", "accounts": []any{}}
+	return map[string]any{"label": p.Label, "baseUrl": p.BaseURL, "priority": p.Priority, "mode": p.mode(), "username": p.Username, "hasCode": p.AccessCode != "", "hasPassword": p.Password != "", "hasToken": p.Token != "", "hasAuth": p.hasAuth(), "checking": true, "refreshing": true, "checkedAt": int64(0), "ok": false, "error": "", "accounts": []any{}}
 }

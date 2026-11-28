@@ -13,7 +13,11 @@ import (
 // Panel 一个 farm 面板配置。
 // 旧版 qq-farm-bot 使用 AccessCode 登录；qq-farm-bot-404 使用 Username + Password 或面板「我的 Token」。
 type Panel struct {
-	Label      string `json:"label"`
+	Label string `json:"label"`
+	// Priority 越小越优先，用于主备和首个可用面板策略。
+	Priority int `json:"priority,omitempty"`
+	// Paused 暂停该面板的自动推送；手动检测与手动推送仍可用。
+	Paused     bool   `json:"paused,omitempty"`
 	BaseURL    string `json:"baseUrl"`
 	AccessCode string `json:"accessCode"`
 	Username   string `json:"username,omitempty"`
@@ -73,6 +77,14 @@ type FarmConfig struct {
 	Webhook string `json:"webhook,omitempty"`
 	// AlertFails 同一面板连续推送失败多少次后告警。
 	AlertFails int `json:"alertFails"`
+	// PanelStrategy 自动任务的面板选择：broadcast / primary_backup / first_available。
+	PanelStrategy string `json:"panelStrategy"`
+	// MaxConcurrent 全局推送并发数，范围 1–8。
+	MaxConcurrent int `json:"maxConcurrent"`
+	// CircuitFails 连续失败多少次后暂时熔断面板。
+	CircuitFails int `json:"circuitFails"`
+	// CircuitCooldownMinutes 熔断后等待多久再允许自动探测。
+	CircuitCooldownMinutes int `json:"circuitCooldownMinutes"`
 }
 
 type Config struct {
@@ -85,18 +97,22 @@ type Config struct {
 
 // 兼容旧版单面板字段（baseUrl / accessCode）
 type rawFarm struct {
-	Enabled        *bool   `json:"enabled"`
-	PushOnLogin    *bool   `json:"pushOnLogin"`
-	RefreshMinutes *int    `json:"refreshMinutes"`
-	StaleHours     *int    `json:"staleHours"`
-	AutoRepair     *bool   `json:"autoRepair"`
-	RepairMinutes  *int    `json:"repairMinutes"`
-	Panels         []Panel `json:"panels"`
-	ActivePanel    *int    `json:"activePanel"`
-	Webhook        *string `json:"webhook"`
-	AlertFails     *int    `json:"alertFails"`
-	BaseURL        string  `json:"baseUrl"`
-	AccessCode     string  `json:"accessCode"`
+	Enabled                *bool   `json:"enabled"`
+	PushOnLogin            *bool   `json:"pushOnLogin"`
+	RefreshMinutes         *int    `json:"refreshMinutes"`
+	StaleHours             *int    `json:"staleHours"`
+	AutoRepair             *bool   `json:"autoRepair"`
+	RepairMinutes          *int    `json:"repairMinutes"`
+	Panels                 []Panel `json:"panels"`
+	ActivePanel            *int    `json:"activePanel"`
+	Webhook                *string `json:"webhook"`
+	AlertFails             *int    `json:"alertFails"`
+	PanelStrategy          string  `json:"panelStrategy"`
+	MaxConcurrent          int     `json:"maxConcurrent"`
+	CircuitFails           int     `json:"circuitFails"`
+	CircuitCooldownMinutes int     `json:"circuitCooldownMinutes"`
+	BaseURL                string  `json:"baseUrl"`
+	AccessCode             string  `json:"accessCode"`
 }
 
 func normalizePanels(in []Panel) []Panel {
@@ -128,6 +144,12 @@ func normalizePanels(in []Panel) []Panel {
 		if p.Label == "" {
 			p.Label = p.BaseURL
 		}
+		if p.Priority <= 0 {
+			p.Priority = len(out) + 1
+		}
+		if p.Priority > 99 {
+			p.Priority = 99
+		}
 		seen[p.BaseURL] = true
 		out = append(out, p)
 	}
@@ -136,11 +158,15 @@ func normalizePanels(in []Panel) []Panel {
 
 func migrateFarm(raw rawFarm) FarmConfig {
 	farm := FarmConfig{
-		Enabled:       true,
-		PushOnLogin:   true,
-		RepairMinutes: 30,
-		AlertFails:    3,
-		Panels:        normalizePanels(raw.Panels),
+		Enabled:                true,
+		PushOnLogin:            true,
+		RepairMinutes:          30,
+		AlertFails:             3,
+		PanelStrategy:          "broadcast",
+		MaxConcurrent:          2,
+		CircuitFails:           5,
+		CircuitCooldownMinutes: 5,
+		Panels:                 normalizePanels(raw.Panels),
 	}
 	if raw.Enabled != nil {
 		farm.Enabled = *raw.Enabled
@@ -166,6 +192,10 @@ func migrateFarm(raw rawFarm) FarmConfig {
 	if raw.AlertFails != nil {
 		farm.AlertFails = clampAlert(*raw.AlertFails)
 	}
+	farm.PanelStrategy = normalizePanelStrategy(raw.PanelStrategy)
+	farm.MaxConcurrent = clampConcurrent(raw.MaxConcurrent)
+	farm.CircuitFails = clampCircuitFails(raw.CircuitFails)
+	farm.CircuitCooldownMinutes = clampCircuitCooldown(raw.CircuitCooldownMinutes)
 	if len(farm.Panels) == 0 && strings.TrimSpace(raw.BaseURL) != "" {
 		code := strings.TrimSpace(raw.AccessCode)
 		if code == "" {
@@ -183,7 +213,7 @@ func migrateFarm(raw rawFarm) FarmConfig {
 }
 
 func defaultFarm() FarmConfig {
-	return FarmConfig{Enabled: true, PushOnLogin: true, RepairMinutes: 30, AlertFails: 3, Panels: []Panel{}}
+	return FarmConfig{Enabled: true, PushOnLogin: true, RepairMinutes: 30, AlertFails: 3, PanelStrategy: "broadcast", MaxConcurrent: 2, CircuitFails: 5, CircuitCooldownMinutes: 5, Panels: []Panel{}}
 }
 
 // clampRefresh 定时刷新下限 5 分钟：低于该值会不断重启面板会话，容易触发风控。
@@ -235,6 +265,59 @@ func clampAlert(v int) int {
 	return v
 }
 
+func normalizePanelStrategy(v string) string {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "primary_backup", "first_available", "broadcast":
+		return strings.ToLower(strings.TrimSpace(v))
+	default:
+		return "broadcast"
+	}
+}
+
+func clampConcurrent(v int) int {
+	if v <= 0 {
+		return 2
+	}
+	if v > 8 {
+		return 8
+	}
+	return v
+}
+
+func clampCircuitFails(v int) int {
+	if v <= 0 {
+		return 5
+	}
+	if v > 20 {
+		return 20
+	}
+	return v
+}
+
+func clampCircuitCooldown(v int) int {
+	if v <= 0 {
+		return 5
+	}
+	if v > 1440 {
+		return 1440
+	}
+	return v
+}
+
+func normalizeFarm(farm FarmConfig) FarmConfig {
+	farm.PanelStrategy = normalizePanelStrategy(farm.PanelStrategy)
+	farm.MaxConcurrent = clampConcurrent(farm.MaxConcurrent)
+	farm.CircuitFails = clampCircuitFails(farm.CircuitFails)
+	farm.CircuitCooldownMinutes = clampCircuitCooldown(farm.CircuitCooldownMinutes)
+	farm.AlertFails = clampAlert(farm.AlertFails)
+	farm.RepairMinutes = clampRepair(farm.RepairMinutes)
+	farm.RefreshMinutes = clampRefresh(farm.RefreshMinutes)
+	farm.StaleHours = clampStale(farm.StaleHours)
+	farm.Panels = normalizePanels(farm.Panels)
+	farm.ActivePanel = clampIndex(farm.ActivePanel, len(farm.Panels))
+	return farm
+}
+
 // LoadConfig 读取数据目录 config.json；不存在时写入默认配置。
 func LoadConfig(dataDir string) *Config {
 	cfg := &Config{Path: ""}
@@ -277,11 +360,15 @@ func (c *Config) Get() FarmConfig {
 }
 
 func (c *Config) Set(farm FarmConfig) error {
+	farm = normalizeFarm(farm)
 	c.operationMu.Lock()
 	defer c.operationMu.Unlock()
 	if c.Path != "" {
 		data, err := json.MarshalIndent(map[string]any{"farm": farm}, "", "  ")
 		if err != nil {
+			return err
+		}
+		if err = backupConfig(c.Path); err != nil {
 			return err
 		}
 		if err = writePrivateFile(c.Path, append(data, '\n')); err != nil {
@@ -322,6 +409,84 @@ func (c *Config) saveLocked() {
 		c.modTime = st.ModTime()
 		c.mu.Unlock()
 	}
+}
+
+// backupConfig 在覆盖配置前保留最近 5 份副本；不存在旧配置时不创建空备份。
+func backupConfig(path string) error {
+	if path == "" {
+		return nil
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for i := 4; i >= 1; i-- {
+		src := fmt.Sprintf("%s.bak.%d", path, i)
+		dst := fmt.Sprintf("%s.bak.%d", path, i+1)
+		if _, err := os.Stat(src); err == nil {
+			_ = os.Remove(dst)
+			if err := os.Rename(src, dst); err != nil {
+				return err
+			}
+		}
+	}
+	if err := writePrivateFile(path+".bak.1", raw); err != nil {
+		return err
+	}
+	return writePrivateFile(path+".bak", raw)
+}
+
+func configBackupPath(path, name string) (string, bool) {
+	if path == "" {
+		return "", false
+	}
+	if name == "config.json.bak" {
+		return path + ".bak", true
+	}
+	for i := 1; i <= 5; i++ {
+		if name == fmt.Sprintf("config.json.bak.%d", i) {
+			return fmt.Sprintf("%s.bak.%d", path, i), true
+		}
+	}
+	return "", false
+}
+
+func listConfigBackups(path string) []map[string]any {
+	out := []map[string]any{}
+	if path == "" {
+		return out
+	}
+	names := []string{"config.json.bak", "config.json.bak.1", "config.json.bak.2", "config.json.bak.3", "config.json.bak.4", "config.json.bak.5"}
+	for _, name := range names {
+		p, _ := configBackupPath(path, name)
+		st, err := os.Stat(p)
+		if err != nil {
+			continue
+		}
+		out = append(out, map[string]any{"name": name, "bytes": st.Size(), "modifiedAt": st.ModTime().UnixMilli()})
+	}
+	return out
+}
+
+func readConfigBackup(path, name string) (FarmConfig, error) {
+	p, ok := configBackupPath(path, name)
+	if !ok {
+		return FarmConfig{}, fmt.Errorf("无效的备份名称")
+	}
+	raw, err := os.ReadFile(p)
+	if err != nil {
+		return FarmConfig{}, err
+	}
+	var top struct {
+		Farm rawFarm `json:"farm"`
+	}
+	if err := json.Unmarshal(raw, &top); err != nil {
+		return FarmConfig{}, fmt.Errorf("备份配置格式错误")
+	}
+	return migrateFarm(top.Farm), nil
 }
 
 // writePrivateFile 写入仅当前用户可读写的文件，并收紧已有文件的权限。

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -50,19 +51,21 @@ type PushTask struct {
 	cancel      chan struct{}
 }
 type Operations struct {
-	revision uint64
-	mu       sync.Mutex
-	saveMu   sync.Mutex
-	routing  Routing
-	daily    map[string]DailyCount
-	tasks    []*PushTask
-	sem      chan struct{}
-	path     string
-	bridge   *Bridge
+	revision      uint64
+	mu            sync.Mutex
+	saveMu        sync.Mutex
+	routing       Routing
+	daily         map[string]DailyCount
+	tasks         []*PushTask
+	sem           chan struct{}
+	slotMu        sync.Mutex
+	maxConcurrent int
+	path          string
+	bridge        *Bridge
 }
 
 func newOperations(b *Bridge) *Operations {
-	o := &Operations{bridge: b, sem: make(chan struct{}, 2), routing: Routing{Accounts: map[string]AccountPolicy{}, Groups: map[string][]string{}}, daily: map[string]DailyCount{}}
+	o := &Operations{bridge: b, sem: make(chan struct{}, 8), maxConcurrent: clampConcurrent(b.cfg.Get().MaxConcurrent), routing: Routing{Accounts: map[string]AccountPolicy{}, Groups: map[string][]string{}}, daily: map[string]DailyCount{}}
 	if b.dataDir != "" {
 		o.path = filepath.Join(b.dataDir, "operations.json")
 		raw, err := os.ReadFile(o.path)
@@ -99,6 +102,45 @@ func newOperations(b *Bridge) *Operations {
 	}
 	return o
 }
+func (o *Operations) SetConcurrency(n int) {
+	o.slotMu.Lock()
+	o.maxConcurrent = clampConcurrent(n)
+	o.slotMu.Unlock()
+}
+
+func (o *Operations) acquire(cancel <-chan struct{}) bool {
+	for {
+		o.slotMu.Lock()
+		if len(o.sem) < o.maxConcurrent {
+			o.sem <- struct{}{}
+			o.slotMu.Unlock()
+			return true
+		}
+		o.slotMu.Unlock()
+		t := time.NewTimer(100 * time.Millisecond)
+		select {
+		case <-t.C:
+		case <-cancel:
+			if !t.Stop() {
+				select {
+				case <-t.C:
+				default:
+				}
+			}
+			return false
+		}
+	}
+}
+
+func (o *Operations) release() {
+	o.slotMu.Lock()
+	select {
+	case <-o.sem:
+	default:
+	}
+	o.slotMu.Unlock()
+}
+
 func taskActive(s string) bool          { return s == "queued" || s == "running" || s == "retry_wait" }
 func accountKey(id, proto int64) string { return fmt.Sprintf("%d:%d", id, proto) }
 func cloneRouting(r Routing) Routing {
@@ -205,20 +247,92 @@ func (o *Operations) Targets(bot Bot, automatic bool) []string {
 	if automatic && p.Paused {
 		return nil
 	}
-	if len(p.Targets) > 0 {
-		return p.Targets
-	}
-	if p.Group != "" {
-		if v := r.Groups[p.Group]; len(v) > 0 {
-			return v
-		}
+	targets := append([]string(nil), p.Targets...)
+	if len(targets) == 0 && p.Group != "" {
+		targets = append(targets, r.Groups[p.Group]...)
 	}
 	ps := o.bridge.Panels()
-	if len(ps) == 0 {
+	if len(targets) == 0 && len(ps) > 0 {
+		targets = []string{ps[o.bridge.activeIndex(ps)].BaseURL}
+	}
+	if !automatic {
+		return targets
+	}
+	// 自动任务只考虑仍存在且未暂停的面板；手动任务保留用户显式指定的目标。
+	configured := make(map[string]Panel, len(ps))
+	for _, panel := range ps {
+		configured[panel.BaseURL] = panel
+	}
+	activeTargets := make([]string, 0, len(targets))
+	for _, base := range targets {
+		if panel, ok := configured[base]; ok && !panel.Paused {
+			activeTargets = append(activeTargets, base)
+		}
+	}
+	targets = activeTargets
+	if len(targets) == 0 {
 		return nil
 	}
-	return []string{ps[o.bridge.activeIndex(ps)].BaseURL}
+	strategy := normalizePanelStrategy(o.bridge.cfg.Get().PanelStrategy)
+	if strategy == "broadcast" {
+		// 广播也遵守熔断，避免持续向故障面板重试；其余健康目标仍可独立推送。
+		healthy := make([]string, 0, len(targets))
+		for _, base := range targets {
+			if !o.bridge.PanelCircuitOpen(base) {
+				healthy = append(healthy, base)
+			}
+		}
+		return healthy
+	}
+	// 两种单目标策略都会跳过熔断面板；主备按 priority 排序，首个可用保留路由顺序。
+	type candidate struct {
+		base     string
+		priority int
+		order    int
+	}
+	priority := map[string]int{}
+	for i, p := range ps {
+		v := p.Priority
+		if v <= 0 {
+			v = i + 1
+		}
+		priority[p.BaseURL] = v
+	}
+	candidates := make([]candidate, 0, len(targets))
+	for i, base := range targets {
+		candidates = append(candidates, candidate{base: base, priority: priority[base], order: i})
+	}
+	if strategy == "primary_backup" {
+		slices.SortStableFunc(candidates, func(a, b candidate) int {
+			if a.priority != b.priority {
+				if a.priority == 0 {
+					return 1
+				}
+				if b.priority == 0 {
+					return -1
+				}
+				if a.priority < b.priority {
+					return -1
+				}
+				return 1
+			}
+			if a.order < b.order {
+				return -1
+			}
+			if a.order > b.order {
+				return 1
+			}
+			return 0
+		})
+	}
+	for _, c := range candidates {
+		if !o.bridge.PanelCircuitOpen(c.base) {
+			return []string{c.base}
+		}
+	}
+	return nil
 }
+
 func (o *Operations) AutoAllowed(bot Bot, base string) bool {
 	for _, u := range o.Targets(bot, true) {
 		if u == base {
@@ -367,7 +481,7 @@ func (o *Operations) run(t *PushTask, delay time.Duration) {
 			o.bridge.cfg.operationMu.RUnlock()
 		}
 		if acquired {
-			<-o.sem
+			o.release()
 		}
 		if r := recover(); r != nil {
 			o.setTask(t, "interrupted", "任务异常中断，请先核实面板状态", "执行异常，详见运行日志", 0)
@@ -379,16 +493,14 @@ func (o *Operations) run(t *PushTask, delay time.Duration) {
 		if !o.wait(t, wait) {
 			return
 		}
-		select {
-		case o.sem <- struct{}{}:
-			acquired = true
-		case <-t.cancel:
+		if !o.acquire(t.cancel) {
 			return
 		}
+		acquired = true
 		o.mu.Lock()
 		if t.Status == "cancelled" {
 			o.mu.Unlock()
-			<-o.sem
+			o.release()
 			acquired = false
 			return
 		}
@@ -401,7 +513,7 @@ func (o *Operations) run(t *PushTask, delay time.Duration) {
 		o.saveLogged()
 		bot := Bot{SelfID: t.SelfID, ProtocolID: t.ProtocolID, Nickname: t.Nickname}
 		if t.Source == "automatic" && (!o.bridge.cfg.Get().Enabled || !o.AutoAllowed(bot, t.PanelURL)) {
-			<-o.sem
+			o.release()
 			acquired = false
 			o.setTask(t, "cancelled", "自动推送已暂停或路由已变更", "", 0)
 			return
@@ -419,7 +531,7 @@ func (o *Operations) run(t *PushTask, delay time.Duration) {
 		if index < 0 {
 			o.bridge.cfg.operationMu.RUnlock()
 			operationHeld = false
-			<-o.sem
+			o.release()
 			acquired = false
 			o.setTask(t, "failed", "目标已被移除", "不会改投其他面板", 0)
 			return
@@ -427,7 +539,7 @@ func (o *Operations) run(t *PushTask, delay time.Duration) {
 		res, err := o.bridge.pushAccountTracked(bot, index)
 		o.bridge.cfg.operationMu.RUnlock()
 		operationHeld = false
-		<-o.sem
+		o.release()
 		acquired = false
 		if err == nil {
 			status, stage := "succeeded", "同步完成"

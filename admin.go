@@ -115,7 +115,7 @@ func (a *Admin) stateView(historyLimit int, view string) map[string]any {
 	panelMeta := []map[string]any{}
 	for _, p := range farm.Panels {
 		panelMeta = append(panelMeta, map[string]any{
-			"label": p.Label, "baseUrl": p.BaseURL, "hasCode": p.AccessCode != "",
+			"label": p.Label, "baseUrl": p.BaseURL, "priority": p.Priority, "paused": p.Paused, "hasCode": p.AccessCode != "",
 			"mode": p.mode(), "authMode": p.AuthMode, "username": p.Username,
 			"hasPassword": p.Password != "", "hasToken": p.Token != "",
 			"hasAuth": p.hasAuth(),
@@ -138,16 +138,20 @@ func (a *Admin) stateView(historyLimit int, view string) map[string]any {
 		"data_path":   a.dataDir,
 		"schedule":    map[string]any{"nextRefreshAt": nextRefresh, "nextStaleAt": nextStale, "nextRepairAt": nextRepair},
 		"config": map[string]any{
-			"enabled":        farm.Enabled,
-			"pushOnLogin":    farm.PushOnLogin,
-			"refreshMinutes": farm.RefreshMinutes,
-			"staleHours":     farm.StaleHours,
-			"autoRepair":     farm.AutoRepair,
-			"repairMinutes":  farm.RepairMinutes,
-			"webhook":        farm.Webhook,
-			"alertFails":     farm.AlertFails,
-			"activePanel":    farm.ActivePanel,
-			"panels":         panelMeta,
+			"enabled":                farm.Enabled,
+			"pushOnLogin":            farm.PushOnLogin,
+			"refreshMinutes":         farm.RefreshMinutes,
+			"staleHours":             farm.StaleHours,
+			"autoRepair":             farm.AutoRepair,
+			"repairMinutes":          farm.RepairMinutes,
+			"webhook":                farm.Webhook,
+			"alertFails":             farm.AlertFails,
+			"panelStrategy":          farm.PanelStrategy,
+			"maxConcurrent":          farm.MaxConcurrent,
+			"circuitFails":           farm.CircuitFails,
+			"circuitCooldownMinutes": farm.CircuitCooldownMinutes,
+			"activePanel":            farm.ActivePanel,
+			"panels":                 panelMeta,
 		},
 		"accounts":     accounts,
 		"panels":       panels,
@@ -344,12 +348,40 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 		}
 		jsonOut(200, map[string]any{"ok": true, "lines": RecentLogs(limit)})
 
+	case r.URL.Path == "/api/config/backups" && r.Method == http.MethodGet:
+		jsonOut(200, map[string]any{"backups": listConfigBackups(a.cfg.Path)})
+		return
+
+	case r.URL.Path == "/api/config/rollback" && r.Method == http.MethodPost:
+		body := readBody()
+		name, _ := body["name"].(string)
+		farm, err := readConfigBackup(a.cfg.Path, strings.TrimSpace(name))
+		if err != nil {
+			jsonOut(400, map[string]any{"error": "无法读取配置备份：" + err.Error()})
+			return
+		}
+		if len(farm.Panels) == 0 || len(farm.Panels) > 8 {
+			jsonOut(400, map[string]any{"error": "备份中的面板数量需在 1–8 个之间"})
+			return
+		}
+		if err := a.cfg.Set(farm); err != nil {
+			jsonOut(500, map[string]any{"error": "回滚保存失败"})
+			return
+		}
+		a.bridge.clearTokens()
+		a.bridge.ops.SetConcurrency(farm.MaxConcurrent)
+		a.bridge.StartTimers()
+		a.invalidatePanels()
+		logf("已从配置备份回滚：%s", name)
+		jsonOut(200, map[string]any{"ok": true, "state": a.state(60)})
+		return
+
 	case r.URL.Path == "/api/config/export" && r.Method == http.MethodGet:
 		farm := a.cfg.Get()
 		panels := []map[string]any{}
 		for _, p := range farm.Panels {
 			// 不导出访问 Code 与管理员密码
-			panels = append(panels, map[string]any{"label": p.Label, "baseUrl": p.BaseURL, "mode": p.mode(), "authMode": p.AuthMode, "username": p.Username, "hasToken": p.Token != ""})
+			panels = append(panels, map[string]any{"label": p.Label, "baseUrl": p.BaseURL, "priority": p.Priority, "paused": p.Paused, "mode": p.mode(), "authMode": p.AuthMode, "username": p.Username, "hasToken": p.Token != ""})
 		}
 		payload := map[string]any{
 			"version": version, "exportedAt": time.Now().UnixMilli(),
@@ -358,6 +390,8 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 				"refreshMinutes": farm.RefreshMinutes, "staleHours": farm.StaleHours,
 				"autoRepair": farm.AutoRepair, "repairMinutes": farm.RepairMinutes,
 				"webhook": farm.Webhook, "alertFails": farm.AlertFails,
+				"panelStrategy": farm.PanelStrategy, "maxConcurrent": farm.MaxConcurrent,
+				"circuitFails": farm.CircuitFails, "circuitCooldownMinutes": farm.CircuitCooldownMinutes,
 				"activePanel": farm.ActivePanel, "panels": panels,
 			},
 		}
@@ -404,6 +438,18 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 		if _, ok := farm["alertFails"]; ok {
 			next.AlertFails = clampAlert(int(toFloat(farm["alertFails"])))
 		}
+		if v, ok := farm["panelStrategy"].(string); ok {
+			next.PanelStrategy = normalizePanelStrategy(v)
+		}
+		if _, ok := farm["maxConcurrent"]; ok {
+			next.MaxConcurrent = clampConcurrent(int(toFloat(farm["maxConcurrent"])))
+		}
+		if _, ok := farm["circuitFails"]; ok {
+			next.CircuitFails = clampCircuitFails(int(toFloat(farm["circuitFails"])))
+		}
+		if _, ok := farm["circuitCooldownMinutes"]; ok {
+			next.CircuitCooldownMinutes = clampCircuitCooldown(int(toFloat(farm["circuitCooldownMinutes"])))
+		}
 		list, _ := farm["panels"].([]any)
 		panels := []Panel{}
 		for i, item := range list {
@@ -414,6 +460,8 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 			}
 			panels = append(panels, Panel{
 				Label:      label,
+				Priority:   int(toFloat(p["priority"])),
+				Paused:     panelPaused(p, next.Panels, strings.TrimRight(strings.TrimSpace(stringField(p, "baseUrl")), "/")),
 				BaseURL:    strings.TrimRight(strings.TrimSpace(stringField(p, "baseUrl")), "/"),
 				AccessCode: strings.TrimSpace(stringField(p, "accessCode")),
 				Username:   strings.TrimSpace(stringField(p, "username")),
@@ -457,6 +505,7 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 			return
 		}
 		a.bridge.clearTokens()
+		a.bridge.ops.SetConcurrency(next.MaxConcurrent)
 		a.bridge.StartTimers()
 		a.invalidatePanels()
 		logf("配置已通过导入更新：%d 个面板", len(migrated))
@@ -494,16 +543,32 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 		if _, ok := farm["alertFails"]; ok {
 			next.AlertFails = clampAlert(int(toFloat(farm["alertFails"])))
 		}
+		if v, ok := farm["panelStrategy"].(string); ok {
+			next.PanelStrategy = normalizePanelStrategy(v)
+		}
+		if _, ok := farm["maxConcurrent"]; ok {
+			next.MaxConcurrent = clampConcurrent(int(toFloat(farm["maxConcurrent"])))
+		}
+		if _, ok := farm["circuitFails"]; ok {
+			next.CircuitFails = clampCircuitFails(int(toFloat(farm["circuitFails"])))
+		}
+		if _, ok := farm["circuitCooldownMinutes"]; ok {
+			next.CircuitCooldownMinutes = clampCircuitCooldown(int(toFloat(farm["circuitCooldownMinutes"])))
+		}
 		_, hasPanels := farm["panels"]
 		_, hasBaseURL := farm["baseUrl"]
 		if hasPanels || hasBaseURL {
 			candidate := rawFarm{
-				Enabled:        boolPtr(next.Enabled),
-				PushOnLogin:    boolPtr(next.PushOnLogin),
-				RefreshMinutes: intPtr(next.RefreshMinutes),
-				StaleHours:     intPtr(next.StaleHours),
-				Webhook:        stringPtr(next.Webhook),
-				AlertFails:     intPtr(next.AlertFails),
+				Enabled:                boolPtr(next.Enabled),
+				PushOnLogin:            boolPtr(next.PushOnLogin),
+				RefreshMinutes:         intPtr(next.RefreshMinutes),
+				StaleHours:             intPtr(next.StaleHours),
+				Webhook:                stringPtr(next.Webhook),
+				AlertFails:             intPtr(next.AlertFails),
+				PanelStrategy:          next.PanelStrategy,
+				MaxConcurrent:          next.MaxConcurrent,
+				CircuitFails:           next.CircuitFails,
+				CircuitCooldownMinutes: next.CircuitCooldownMinutes,
 			}
 			if hasPanels {
 				list, _ := farm["panels"].([]any)
@@ -516,6 +581,8 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 					}
 					panels = append(panels, Panel{
 						Label:      label,
+						Priority:   int(toFloat(p["priority"])),
+						Paused:     panelPaused(p, next.Panels, strings.TrimRight(strings.TrimSpace(stringField(p, "baseUrl")), "/")),
 						BaseURL:    strings.TrimRight(strings.TrimSpace(stringField(p, "baseUrl")), "/"),
 						AccessCode: strings.TrimSpace(stringField(p, "accessCode")),
 						Username:   strings.TrimSpace(stringField(p, "username")),
@@ -574,6 +641,7 @@ func (a *Admin) serve(w http.ResponseWriter, r *http.Request, allowCORS bool) {
 			jsonOut(500, map[string]any{"error": "配置保存失败"})
 			return
 		}
+		a.bridge.ops.SetConcurrency(next.MaxConcurrent)
 		a.bridge.StartTimers()
 		a.invalidatePanels()
 		logf("配置已通过管理端更新")
@@ -649,6 +717,19 @@ func stringField(m map[string]any, key string) string {
 		return v
 	}
 	return ""
+}
+
+// panelPaused preserves the existing pause state for older clients that omit the field.
+func panelPaused(input map[string]any, existing []Panel, baseURL string) bool {
+	if paused, ok := input["paused"].(bool); ok {
+		return paused
+	}
+	for _, panel := range existing {
+		if panel.BaseURL == baseURL {
+			return panel.Paused
+		}
+	}
+	return false
 }
 
 // panelAuthMode 读取显式认证方式；兼容只带 mode 字段的旧导出配置。

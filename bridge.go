@@ -50,6 +50,15 @@ func (b Bot) isAndroid() bool {
 	return strings.Contains(strings.ToLower(b.Platform), "android")
 }
 
+type panelCircuit struct {
+	Failures    int
+	OpenedUntil int64
+	LastError   string
+	LastSuccess int64
+	LastFailure int64
+	LastLatency int64
+}
+
 type Activity struct {
 	Time       int64  `json:"time"`
 	Type       string `json:"type"`
@@ -103,6 +112,9 @@ type Bridge struct {
 	alertMu    sync.Mutex
 	panelFails map[string]int
 	alertOn    map[string]bool
+
+	circuitMu sync.Mutex
+	circuits  map[string]panelCircuit
 }
 
 func newBridge(cfg *Config, ipc *IPC, dataDir string) *Bridge {
@@ -603,7 +615,9 @@ func (b *Bridge) PushAccount(bot Bot, index int) (map[string]any, error) {
 	return b.pushAccountTracked(bot, index)
 }
 func (b *Bridge) pushAccountTracked(bot Bot, index int) (map[string]any, error) {
+	started := time.Now()
 	res, err := b.pushAccount(bot, index)
+	b.recordPanelCircuit(index, err, time.Since(started))
 	if b.ops != nil {
 		b.ops.Record(bot, index, res, err)
 		if err == nil && res["busy"] != true {
@@ -909,6 +923,74 @@ func (b *Bridge) retryPushLater(bot Bot, index int) {
 	}
 }
 
+// PanelCircuitOpen 判断面板是否处于自动任务熔断期。手动推送不受此状态阻塞。
+func (b *Bridge) PanelCircuitOpen(baseURL string) bool {
+	b.circuitMu.Lock()
+	defer b.circuitMu.Unlock()
+	h := b.circuits[baseURL]
+	if h.OpenedUntil == 0 || time.Now().UnixMilli() >= h.OpenedUntil {
+		if h.OpenedUntil != 0 {
+			h.OpenedUntil = 0
+			b.circuits[baseURL] = h
+		}
+		return false
+	}
+	return true
+}
+
+func (b *Bridge) panelCircuitInfo(baseURL string) panelCircuit {
+	b.circuitMu.Lock()
+	defer b.circuitMu.Unlock()
+	return b.circuits[baseURL]
+}
+
+func (b *Bridge) recordPanelCircuit(index int, err error, latency time.Duration) (opened bool) {
+	panels := b.Panels()
+	if index < 0 || index >= len(panels) {
+		return false
+	}
+	base, label := panels[index].BaseURL, panels[index].Label
+	now := time.Now().UnixMilli()
+	farm := b.cfg.Get()
+	limit := clampCircuitFails(farm.CircuitFails)
+	cooldown := int64(clampCircuitCooldown(farm.CircuitCooldownMinutes)) * 60_000
+	b.circuitMu.Lock()
+	if b.circuits == nil {
+		b.circuits = map[string]panelCircuit{}
+	}
+	h := b.circuits[base]
+	h.LastLatency = latency.Milliseconds()
+	if err == nil {
+		wasOpen := h.OpenedUntil > now
+		h.Failures, h.OpenedUntil, h.LastError, h.LastSuccess = 0, 0, "", now
+		b.circuits[base] = h
+		b.circuitMu.Unlock()
+		if wasOpen {
+			b.LogActivity("panel", fmt.Sprintf("面板「%s」熔断已解除", label), "健康检查或推送已恢复", nil)
+			b.notify("面板已恢复", fmt.Sprintf("面板「%s」已恢复自动推送", label), "ok")
+		}
+		return false
+	}
+	h.Failures++
+	h.LastFailure = now
+	h.LastError = b.redact(err.Error())
+	if h.Failures >= limit && h.OpenedUntil <= now {
+		h.OpenedUntil = now + cooldown
+		opened = true
+	}
+	b.circuits[base] = h
+	b.circuitMu.Unlock()
+	if opened {
+		reason := h.LastError
+		if len(reason) > 160 {
+			reason = reason[:160]
+		}
+		b.LogActivity("panel", fmt.Sprintf("面板「%s」已暂时熔断", label), fmt.Sprintf("连续失败 %d 次，%d 分钟后自动恢复探测：%s", h.Failures, cooldown/60_000, reason), nil)
+		b.notify("面板自动熔断", fmt.Sprintf("面板「%s」连续失败 %d 次，已暂停自动推送", label, h.Failures), "error")
+	}
+	return opened
+}
+
 // trackPush 更新面板连续失败计数；达到阈值时触发一次告警，恢复后自动清除。
 func (b *Bridge) trackPush(index int, err error) {
 	panels := b.Panels()
@@ -1066,9 +1148,11 @@ func (b *Bridge) TestPanel(index int) (map[string]any, error) {
 			}
 		}
 	}
+	latency := time.Since(started)
+	b.recordPanelCircuit(index, nil, latency)
 	return map[string]any{
 		"panel": panels[index].Label, "ok": true, "accounts": accounts, "running": running,
-		"ms": time.Since(started).Milliseconds(), "warning": b.panelWarning(panels[index].BaseURL),
+		"ms": latency.Milliseconds(), "warning": b.panelWarning(panels[index].BaseURL),
 	}, nil
 }
 
@@ -1105,10 +1189,12 @@ func (b *Bridge) PanelStatusEach(publish func(int, map[string]any)) []map[string
 			}
 			started := time.Now()
 			list, err := b.farmFetch(i, http.MethodGet, "/api/accounts", nil)
+			latency := time.Since(started)
+			b.recordPanelCircuit(i, err, latency)
 			if err != nil {
 				item["error"] = err.Error()
 			} else {
-				item["ms"] = time.Since(started).Milliseconds()
+				item["ms"] = latency.Milliseconds()
 				item["ok"] = true
 				accounts := []any{}
 				if data, ok := list["data"].(map[string]any); ok {
@@ -1162,6 +1248,13 @@ func (b *Bridge) PanelStatusEach(publish func(int, map[string]any)) []map[string
 			fails, alerting := b.alertInfo(panel.BaseURL)
 			item["fails"] = fails
 			item["alert"] = alerting
+			circuit := b.panelCircuitInfo(panel.BaseURL)
+			item["circuitFailures"] = circuit.Failures
+			item["circuitOpen"] = circuit.OpenedUntil > time.Now().UnixMilli()
+			item["circuitUntil"] = circuit.OpenedUntil
+			item["lastError"] = circuit.LastError
+			item["lastSuccessAt"] = circuit.LastSuccess
+			item["lastLatencyMs"] = circuit.LastLatency
 			if msg, ok := item["error"].(string); ok {
 				item["error"] = b.redact(msg)
 			}
@@ -1579,6 +1672,7 @@ func (b *Bridge) StartConfigWatcher() {
 			if !samePanelURLs(before, after) || !samePanelAuth(before, after) {
 				b.clearTokens()
 			}
+			b.ops.SetConcurrency(b.cfg.Get().MaxConcurrent)
 			b.StartTimers()
 			logf("检测到 config.json 外部变更，已热加载并重建定时任务")
 		}

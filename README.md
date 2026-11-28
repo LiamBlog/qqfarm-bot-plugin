@@ -6,6 +6,15 @@
 
 ## 版本记录
 
+### 3.14.0 · 2026-11-28
+- 面板可单独暂停／恢复自动推送；自动策略会跳过暂停目标，手动检测和推送仍可使用。
+- 支持广播、主备、首个可用三种多面板自动推送策略，并可配置面板优先级、熔断阈值和冷却时间；广播推送也会跳过熔断目标。
+- 新增面板连续失败熔断与冷却恢复；自动任务跳过熔断面板，手动检测和推送不受影响。
+- 新增全局推送并发配置（1–8），配置热加载立即生效；诊断页显示面板延迟、失败次数和熔断状态。
+- 新增 `config.json` 自动备份（`.bak`、`.bak.1`–`.bak.5`）及管理端配置回滚入口，保留现有账号、面板凭据和路由兼容性。
+- 添加面板向导修复小窗口中可能靠左上显示的问题；覆盖桌面和手机视口定位回归。
+- 新增面板暂停／恢复、路由策略、熔断、并发、配置备份与回滚回归测试。
+
 ### 3.12.3 · 2026-11-27
 - 优化框架账号上线后的自动推送：等待账号列表与在线状态刷新后再读取最新 Code，避免上线事件早于框架状态导致漏推。
 - 按 `self_id + protocol_id` 精确匹配账号，仅对已确认在线的 Android 账号排队推送；重复上线事件在处理中合并，并保留 60 秒冷却保护。
@@ -149,22 +158,22 @@
 ## 构建
 
 ```bash
-bash build.sh                 # 默认版本 3.12.3，一次生成三个平台的 TAR.GZ 插件包
-bash build.sh 3.12.3 all       # Linux amd64 + Linux arm64 + Windows amd64
-bash build.sh 3.12.3 linux     # 仅 Linux 双架构
-bash build.sh 3.12.3 windows   # 仅 Windows amd64（bin/qqfarm-bot.exe）
-# 单平台：bash build.sh 3.12.3 amd64
+bash build.sh                 # 默认版本 3.14.0，一次生成三个平台的 TAR.GZ 插件包
+bash build.sh 3.14.0 all       # Linux amd64 + Linux arm64 + Windows amd64
+bash build.sh 3.14.0 linux     # 仅 Linux 双架构
+bash build.sh 3.14.0 windows   # 仅 Windows amd64（bin/qqfarm-bot.exe）
+# 单平台：bash build.sh 3.14.0 amd64
 ```
 
 构建要求：Go 1.25+、Bash，以及 `tar`、`gzip`、`sha256sum` 等常用命令。`CGO_ENABLED=0`（脚本已设置）；Linux 产物为静态链接 ELF，不依赖容器 glibc；Windows 产物为 PE 可执行文件。
 
 默认在 `dist/` 生成以下三个可导入插件包，每个包另附同名 `.tar.gz.sha256` 校验文件：
 
-| 平台 | 插件包（以 3.12.3 为例） |
+| 平台 | 插件包（以 3.14.0 为例） |
 | --- | --- |
-| Linux amd64 | `qqfarm-bot-ipc-plugin-linux-amd64-3.12.3.tar.gz` |
-| Linux arm64 | `qqfarm-bot-ipc-plugin-linux-arm64-3.12.3.tar.gz` |
-| Windows amd64 | `qqfarm-bot-ipc-plugin-windows-amd64-3.12.3.tar.gz` |
+| Linux amd64 | `qqfarm-bot-ipc-plugin-linux-amd64-3.14.0.tar.gz` |
+| Linux arm64 | `qqfarm-bot-ipc-plugin-linux-arm64-3.14.0.tar.gz` |
+| Windows amd64 | `qqfarm-bot-ipc-plugin-windows-amd64-3.14.0.tar.gz` |
 
 三个包均将 `mengka-plugin.json` 放在压缩包根目录，入口位于 `bin/`；Linux 入口保留执行权限。Windows 包要求萌卡 NT 3.0.7 或更高版本。GitHub Release 同样直接提供这三个 `.tar.gz` 插件包及校验文件。
 
@@ -185,7 +194,7 @@ node test/ipc-host.mjs
 
 ## 安装
 
-框架管理端 → 插件 → 导入 `dist/qqfarm-bot-ipc-plugin-linux-amd64-3.12.3.tar.gz`。插件 ID 未变，导入后会替换原实例，数据目录 `/data` 保留。
+框架管理端 → 插件 → 导入 `dist/qqfarm-bot-ipc-plugin-linux-amd64-3.14.0.tar.gz`。插件 ID 未变，导入后会替换原实例，数据目录 `/data` 保留。
 
 ## 卸载/回滚
 
@@ -209,7 +218,7 @@ node test/ipc-host.mjs
 go vet ./...
 go test ./...
 # 有 C 编译器的环境运行：go test -race ./...
-bash build.sh 3.12.3 amd64
+bash build.sh 3.14.0 amd64
 node test/ipc-host.mjs
 # UI 测试依赖仅用于开发，Linux/CI 使用 Chromium
 npm install --no-save playwright@1.62.1

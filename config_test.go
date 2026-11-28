@@ -211,3 +211,70 @@ func TestSaveRemarkConcurrentUpdatesArePreserved(t *testing.T) {
 		}
 	}
 }
+
+func TestV314FarmDefaultsAndNormalization(t *testing.T) {
+	farm := migrateFarm(rawFarm{Panels: []Panel{{BaseURL: "http://a"}, {BaseURL: "http://b", Priority: 0}}})
+	if farm.PanelStrategy != "broadcast" || farm.MaxConcurrent != 2 || farm.CircuitFails != 5 || farm.CircuitCooldownMinutes != 5 {
+		t.Fatalf("v3.14 默认值错误：%+v", farm)
+	}
+	if farm.Panels[0].Priority != 1 || farm.Panels[1].Priority != 2 {
+		t.Fatalf("面板默认优先级错误：%+v", farm.Panels)
+	}
+	farm.PanelStrategy = "unknown"
+	farm.MaxConcurrent = 99
+	farm.CircuitFails = -1
+	farm.CircuitCooldownMinutes = 99999
+	farm = normalizeFarm(farm)
+	if farm.PanelStrategy != "broadcast" || farm.MaxConcurrent != 8 || farm.CircuitFails != 5 || farm.CircuitCooldownMinutes != 1440 {
+		t.Fatalf("v3.14 边界归一化错误：%+v", farm)
+	}
+}
+
+func TestConfigSetCreatesRotatingBackups(t *testing.T) {
+	dir := t.TempDir()
+	cfg := LoadConfig(dir)
+	first := cfg.Get()
+	first.RefreshMinutes = 10
+	if err := cfg.Set(first); err != nil {
+		t.Fatal(err)
+	}
+	second := cfg.Get()
+	second.RefreshMinutes = 20
+	if err := cfg.Set(second); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "config.json.bak")); err != nil {
+		t.Fatalf("缺少当前配置备份：%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "config.json.bak.1")); err != nil {
+		t.Fatalf("缺少轮换配置备份：%v", err)
+	}
+	got, err := readConfigBackup(cfg.Path, "config.json.bak")
+	if err != nil || got.RefreshMinutes != 10 {
+		t.Fatalf("备份内容错误：%+v %v", got, err)
+	}
+	if len(listConfigBackups(cfg.Path)) < 2 {
+		t.Fatal("配置备份列表不完整")
+	}
+}
+
+func TestPanelPausePersistsAndLegacyDefaultsEnabled(t *testing.T) {
+	dir := t.TempDir()
+	cfg := LoadConfig(dir)
+	farm := cfg.Get()
+	farm.Panels = []Panel{
+		{Label: "暂停面板", BaseURL: "http://paused.test", AccessCode: "a", Paused: true},
+		{Label: "启用面板", BaseURL: "http://active.test", AccessCode: "b"},
+	}
+	if err := cfg.Set(farm); err != nil {
+		t.Fatal(err)
+	}
+	reloaded := LoadConfig(dir).Get()
+	if len(reloaded.Panels) != 2 || !reloaded.Panels[0].Paused || reloaded.Panels[1].Paused {
+		t.Fatalf("面板暂停状态未正确持久化：%+v", reloaded.Panels)
+	}
+	legacy := migrateFarm(rawFarm{Panels: []Panel{{Label: "旧面板", BaseURL: "http://legacy.test", AccessCode: "c"}}})
+	if len(legacy.Panels) != 1 || legacy.Panels[0].Paused {
+		t.Fatalf("旧配置面板应默认启用：%+v", legacy.Panels)
+	}
+}

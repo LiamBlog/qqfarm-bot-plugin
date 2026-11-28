@@ -101,6 +101,7 @@ window.__adminInitialState=fetch('api/state?view=accounts&h=60',{cache:'no-store
   .panel-card {border:1px solid var(--line); border-radius:18px; padding:16px 18px; background:var(--bg2); transition:border-color .15s, box-shadow .15s; position:relative; overflow:hidden}
   .panel-card:hover {box-shadow:var(--shadow)}
   .panel-card.active {border-color:var(--accent); box-shadow:0 0 0 1px var(--accent-soft) inset, 0 10px 26px color-mix(in srgb, var(--accent) 12%, transparent)}
+  .panel-card.paused {opacity:.78}
   .panel-accs {display:flex; align-items:center; gap:8px; margin-top:11px; min-width:0}
   .panel-accs-label {flex:none; font-size:11px; color:var(--faint); letter-spacing:.02em}
   .panel-accs-scroll {display:flex; gap:6px; overflow-x:auto; min-width:0; padding-bottom:0; scrollbar-width:thin; flex-wrap:wrap; overflow:visible; row-gap:6px}
@@ -268,8 +269,10 @@ window.__adminInitialState=fetch('api/state?view=accounts&h=60',{cache:'no-store
   .status-chip.ok {color:var(--ok); background:var(--ok-soft)}
   .status-chip.err {color:var(--err); background:var(--err-soft)}
   .status-chip svg {width:12px; height:12px}
-  .panel-form {border:1px solid var(--line); border-radius:20px; padding:18px; margin-top:14px; display:flex; flex-wrap:wrap; gap:12px; position:fixed; left:50%; top:50%; transform:translate(-50%,-46%) scale(.98); width:min(560px,calc(100vw - 32px)); max-height:calc(100vh - 40px); overflow:auto; margin:0; background:var(--card-grad,var(--card)); box-shadow:var(--shadow); z-index:71; opacity:0; visibility:hidden; transition:opacity .18s,transform .18s,visibility .18s}
-  .panel-form.show {display:flex; opacity:1; visibility:visible; transform:translate(-50%,-50%) scale(1)}
+  .panel-form-layer {position:fixed; inset:0; z-index:71; display:grid; place-items:center; padding:20px; opacity:0; visibility:hidden; pointer-events:none; transition:opacity .18s,visibility .18s}
+  .panel-form-layer.show {opacity:1; visibility:visible; pointer-events:auto}
+  .panel-form {border:1px solid var(--line); border-radius:20px; padding:18px; display:flex; flex-wrap:wrap; gap:12px; position:relative; transform:scale(.98); width:min(560px,calc(100vw - 32px)); max-height:calc(100vh - 40px); max-height:calc(100dvh - 40px); overflow:auto; margin:0; background:var(--card-grad,var(--card)); box-shadow:var(--shadow); opacity:1; visibility:visible; transition:transform .18s}
+  .panel-form-layer.show .panel-form {transform:scale(1)}
   .panel-form .row {flex:1 1 100%; display:grid; grid-template-columns:92px 1fr; gap:10px; align-items:center}
   .panel-form .row.hide {display:none}
   .panel-form label {color:var(--muted); font-size:12px}
@@ -978,6 +981,17 @@ window.__adminInitialState=fetch('api/state?view=accounts&h=60',{cache:'no-store
           <label for="f_webhook">Webhook</label>
           <div class="field"><input type="url" id="f_webhook" placeholder="https://example.com/hook"><small>可选。失败与恢复时向该地址 POST JSON（title / detail / level / text / time），适用于自定义机器人或中转服务</small></div>
         </fieldset>
+        <fieldset class="settings-group">
+          <legend>运维设置 · 多面板与熔断</legend>
+          <label for="f_panelStrategy">自动面板策略</label>
+          <div class="field"><select id="f_panelStrategy"><option value="broadcast">广播：推送全部目标面板</option><option value="primary_backup">主备：优先级最高的可用面板</option><option value="first_available">首个可用：只推送一个面板</option></select><small>主备按面板优先级选择，首个可用按路由顺序选择；手动推送仍可指定目标。</small></div>
+          <label for="f_maxConcurrent">最大并发</label>
+          <div class="field"><input type="number" id="f_maxConcurrent" min="1" max="8"><small>同时执行的面板推送任务数，范围 1–8。</small></div>
+          <label for="f_circuitFails">熔断阈值</label>
+          <div class="field"><input type="number" id="f_circuitFails" min="1" max="20"><small>面板连续失败达到 N 次后暂停自动推送，手动测试和手动推送不受影响。</small></div>
+          <label for="f_circuitCooldownMinutes">熔断恢复（分钟）</label>
+          <div class="field"><input type="number" id="f_circuitCooldownMinutes" min="1" max="1440"><small>熔断后等待指定时间，再允许自动任务探测该面板。</small></div>
+        </fieldset>
         <div class="save-row" id="saveRow"><span class="dirty">● 有未保存的更改</span><button class="btn primary" id="btnSave">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>保存设置</button></div>
       </form>
@@ -989,6 +1003,8 @@ window.__adminInitialState=fetch('api/state?view=accounts&h=60',{cache:'no-store
         <button class="mini-btn" id="btnExport" type="button" title="导出状态快照（不含面板凭据与账号 Code），便于反馈问题">导出诊断包</button>
         <button class="mini-btn" id="btnCfgExport" type="button" title="导出推送配置（不含访问 Code）">导出配置</button>
         <button class="mini-btn" id="btnCfgImport" type="button" title="从 JSON 导入推送配置">导入配置</button>
+        <select class="mini-btn" id="cfgBackupSelect" aria-label="选择配置备份"><option value="">选择配置备份</option></select>
+        <button class="mini-btn danger" id="btnCfgRollback" type="button" title="恢复选中的配置备份">回滚配置</button>
         <button class="mini-btn" id="btnLogs" type="button" title="导出最近 300 行运行日志，便于排查">导出日志</button>
         <label class="sr-only" for="cfgFile">导入配置文件</label>
         <input type="file" id="cfgFile" accept="application/json,.json" style="display:none">
@@ -1003,10 +1019,12 @@ window.__adminInitialState=fetch('api/state?view=accounts&h=60',{cache:'no-store
 <div id="toast" role="status" aria-live="polite"><span id="toastIcon"></span><span id="toastMsg"></span></div>
 
 <div class="modal-mask" id="panelFormMask"></div>
+<div class="panel-form-layer" id="panelFormLayer" aria-hidden="true">
 <form class="panel-form" id="panelForm" onsubmit="return false" role="dialog" aria-modal="true" aria-labelledby="pfTitle">
   <div class="pf-head"><h3 id="pfTitle">面板配置</h3><button class="drawer-close" id="pfClose" type="button" title="关闭">✕</button></div>
   <div class="row"><label for="pf_label">名称</label><input type="text" id="pf_label" placeholder="FARM2"></div>
   <div class="row"><label for="pf_baseUrl">地址</label><input type="text" id="pf_baseUrl" placeholder="http://host:3007"></div>
+  <div class="row"><label for="pf_priority">优先级</label><input type="number" id="pf_priority" min="1" max="99" placeholder="1"><span class="pf-hint">数字越小越优先，用于主备策略；首个可用按路由顺序。</span></div>
   <div class="row"><label for="pf_authMode">认证方式</label>
     <select id="pf_authMode">
       <option value="auto">自动识别</option>
@@ -1025,6 +1043,7 @@ window.__adminInitialState=fetch('api/state?view=accounts&h=60',{cache:'no-store
     <button class="btn primary btn-compact" id="pfSave" type="button">保存</button>
   </div>
 </form>
+</div>
 
 <div class="drawer-mask" id="drawerMask"></div>
 <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="dwNick" aria-hidden="true">
@@ -1843,9 +1862,14 @@ function render(s){
     set('f_repairMinutes', e => e.value=cfg.repairMinutes??30)
     set('f_alertFails', e => e.value=cfg.alertFails??3)
     set('f_webhook', e => e.value=cfg.webhook||'')
+    set('f_panelStrategy', e => e.value=cfg.panelStrategy||'broadcast')
+    set('f_maxConcurrent', e => e.value=cfg.maxConcurrent??2)
+    set('f_circuitFails', e => e.value=cfg.circuitFails??5)
+    set('f_circuitCooldownMinutes', e => e.value=cfg.circuitCooldownMinutes??5)
+    refreshConfigBackups()
     }
     set('cfgSummary', e => e.textContent=cfg.enabled
-      ?`已启用 · ${panels.filter(p=>p.ok).length}/${panels.length} 面板正常 · ${cfg.refreshMinutes>0?`每 ${cfg.refreshMinutes} 分钟刷新`:'定时刷新已关闭'}${cfg.staleHours>0?' · 保鲜 '+cfg.staleHours+'h':''}`
+      ?`已启用 · ${panels.filter(p=>p.ok).length}/${panels.length} 面板正常 · ${cfg.refreshMinutes>0?`每 ${cfg.refreshMinutes} 分钟刷新`:'定时刷新已关闭'}${cfg.staleHours>0?' · 保鲜 '+cfg.staleHours+'h':''}${cfg.panelStrategy&&cfg.panelStrategy!=='broadcast'?' · '+(cfg.panelStrategy==='primary_backup'?'主备':'首个可用'):''}`
       :'未启用')
     set('nextRun', e=>{
       const sc=s.schedule||{}
@@ -1943,8 +1967,10 @@ function renderPanels(s){
   const meta=Array.isArray(cfg.panels)?cfg.panels:[]
   const active=cfg.activePanel||0
   if(!panels.length && !meta.length){setHTML('panelList','<div class="empty">'+ICONS.off+'<div>还没有面板，点右上角「添加面板」</div></div>');return}
-  // 以实时状态 panels 为准，禁用推送时回退到配置元数据
-  const rows=panels.length?panels:meta.map((m,i)=>({...m,ok:false,error:'推送未启用',accounts:[]}))
+  // 以实时状态 panels 为准；暂停状态来自配置元数据，禁用推送时回退到元数据。
+  const sourceRows=panels.length?panels:meta.map((m,i)=>({...m,ok:false,error:'推送未启用',accounts:[]}))
+  const metaByUrl=new Map(meta.map(m=>[m.baseUrl,m]))
+  const rows=sourceRows.map(p=>({...p,paused:!!(metaByUrl.get(p.baseUrl)?.paused??p.paused)}))
   rows.forEach(p=>{
     if(!p.ok||!Number(p.ms)) return
     const k=p.baseUrl||p.label||'panel'
@@ -1953,7 +1979,8 @@ function renderPanels(s){
     arr.push(Number(p.ms)); if(arr.length>24) arr.shift()
   })
   const html=rows.map((p,i)=>({p,i})).sort((a,b)=>Number(a.p.ok)-Number(b.p.ok)).map(({p,i})=>{
-    const isActive=i===active
+    const isActive=i===active, isPaused=!!p.paused
+    const circuit=p.circuitOpen?`<span class="pill r" title="自动任务已熔断，${p.circuitUntil?new Date(p.circuitUntil).toLocaleTimeString('zh-CN',{hour12:false}):'稍后'}后重试">熔断 ${p.circuitFailures||0} 次</span>`:''
     const status=p.checking?`<span class="status-chip"><span class="dot"></span>后台检测中</span>`:p.ok
       ?`<span class="status-chip ok"><span class="dot"></span>正常</span>`
       :`<span class="status-chip err" title="${esc(p.error||'不可达')}"><span class="dot"></span>${esc((p.error||'不可达').slice(0,20))}</span>`
@@ -1969,7 +1996,7 @@ function renderPanels(s){
     const codeText=a=>a.running===false?'已停止':'已接入'
     const accChips=(p.accounts||[]).slice(0,8).map(a=>
       `<span class="pill ${a.running===false?'y':(a.hasCode?'g':'n')}" title="${esc(a.name||a.uin)}${a.running===false?'（已停止）':(a.running?'（运行中）':'')}">${esc(a.uin)} · ${esc(codeText(a))}</span>`).join('')
-    return `<div class="panel-card ${isActive?'active':''}" data-panel-url="${esc(p.baseUrl)}" tabindex="-1">
+    return `<div class="panel-card ${isActive?'active':''} ${isPaused?'paused':''}" data-panel-url="${esc(p.baseUrl)}" tabindex="-1">
       <div class="panel-top">
         <button class="star ${isActive?'on':''}" data-act="active" data-i="${i}" title="${isActive?'当前推送目标':'设为推送目标'}">${ICONS.star}</button>
         <div class="panel-heading">
@@ -1982,6 +2009,8 @@ function renderPanels(s){
         ${status}
         ${spark}
         ${accSummary}
+        ${circuit}
+        ${isPaused?`<span class="pill y" title="自动任务会跳过此面板；手动检测和推送仍可使用">自动推送已暂停</span>`:''}
         ${p.warning?`<span class="pill y" title="${esc(p.warning)}">默认密码</span>`:''}
 
 
@@ -1991,7 +2020,8 @@ function renderPanels(s){
       ${accChips?`<div class="panel-accs"><span class="panel-accs-label">面板账号</span><div class="panel-accs-scroll">${accChips}</div></div>`:''}
       <div class="panel-actions">
         <button class="mini-btn" data-act="test" data-i="${i}" title="测试面板连通性（登录 + 拉取账号）">${ICONS.link}重新检测</button>
-        <button class="mini-btn" data-act="push" data-i="${i}" title="推送全部在线安卓账号到此面板">${ICONS.upload}推送到此</button>
+        <button class="mini-btn" data-act="push" data-i="${i}" title="手动推送全部在线安卓账号到此面板">${ICONS.upload}推送到此</button>
+        <button class="mini-btn" data-act="pause" data-i="${i}" title="${isPaused?'恢复此面板的自动推送':'暂停此面板的自动推送；手动推送仍可用'}">${isPaused?'恢复自动推送':'暂停自动推送'}</button>
         <a class="mini-btn" href="${esc(p.baseUrl)}" target="_blank" rel="noopener" title="打开面板">${ICONS.link}打开</a>
         <span class="panel-actions-gap"></span>
         <button class="mini-btn" data-act="edit" data-i="${i}" title="编辑面板">${ICONS.edit}${p.failureKind==='auth'||p.authBlocked||p.hasAuth===false?'更新凭据':'编辑'}</button>
@@ -2008,11 +2038,18 @@ function renderPanels(s){
 }
 
 async function savePanels(panels, activePanel){
-  return post('api/config',{farm:{enabled:STATE.config.enabled,pushOnLogin:STATE.config.pushOnLogin,refreshMinutes:STATE.config.refreshMinutes,panels,activePanel}})
+  return post('api/config',{farm:{enabled:STATE.config.enabled,pushOnLogin:STATE.config.pushOnLogin,refreshMinutes:STATE.config.refreshMinutes,panels,activePanel,panelStrategy:STATE.config.panelStrategy,maxConcurrent:STATE.config.maxConcurrent,circuitFails:STATE.config.circuitFails,circuitCooldownMinutes:STATE.config.circuitCooldownMinutes}})
 }
 async function panelAction(act, i){
   const meta=STATE?.config?.panels||[], live=STATE?.panels||[]
   if(act==='active'){ await savePanels(meta,i); toast('已切换推送目标') }
+  if(act==='pause'){
+    const panel=meta[i]; if(!panel) return
+    const paused=!panel.paused
+    const next=meta.map((p,x)=>x===i?{...p,paused}:p)
+    try{ await savePanels(next,STATE.config.activePanel||0); toast(paused?'已暂停该面板自动推送':'已恢复该面板自动推送') }
+    catch(e){ toast('保存失败：'+e.message,false) }
+  }
   if(act==='del'){
     if(meta.length<=1) return toast('至少保留 1 个面板',false)
     const p=meta[i]; if(!await confirmAction(`删除面板「${p.label}」？`,{title:'删除面板',confirmText:'删除面板',danger:true})) return
@@ -2044,6 +2081,7 @@ async function panelAction(act, i){
     const p=meta[i]||{}
     $('pf_label').value=p.label||''
     $('pf_baseUrl').value=p.baseUrl||''
+    $('pf_priority').value=p.priority||i+1
     $('pf_accessCode').value=''
     $('pf_accessCode').placeholder='留空保持原 Code 不变'
     $('pf_username').value=p.username||''
@@ -2059,12 +2097,16 @@ async function panelAction(act, i){
 }
 
 function openPanelForm(){
-  $('panelForm')?.classList.add('show')
+  const layer=$('panelFormLayer')
+  layer?.classList.add('show')
+  layer?.setAttribute('aria-hidden','false')
   $('panelFormMask')?.classList.add('show')
   document.body.classList.add('no-scroll')
 }
 function closePanelForm(){
-  $('panelForm')?.classList.remove('show')
+  const layer=$('panelFormLayer')
+  layer?.classList.remove('show')
+  layer?.setAttribute('aria-hidden','true')
   $('panelFormMask')?.classList.remove('show')
   if(!$('drawer')?.classList.contains('show')) document.body.classList.remove('no-scroll')
 }
@@ -2085,6 +2127,7 @@ set('pf_authMode', el=>el.onchange=syncPanelAuth)
 set('btnAddPanel', b => b.onclick=()=>{
   editingPanel=-2
   for(const id of ['pf_label','pf_baseUrl','pf_accessCode','pf_username','pf_password','pf_token']) set(id,e=>e.value='')
+  set('pf_priority',e=>e.value=(STATE?.config?.panels?.length||0)+1)
   set('pf_accessCode', e => e.placeholder='旧版 qq-farm-bot 的访问 Code')
   set('pf_password', e => e.placeholder='仅 404 版面板需要')
   set('pf_token', e => e.placeholder='粘贴面板左下角「我的 Token」')
@@ -2097,6 +2140,7 @@ set('pfSave', b => b.onclick=async ()=>{
   const label=($('pf_label')?.value||'').trim(), baseUrl=($('pf_baseUrl')?.value||'').trim()
   const accessCode=($('pf_accessCode')?.value||'').trim(), username=($('pf_username')?.value||'').trim()
   const password=($('pf_password')?.value||'').trim(), token=($('pf_token')?.value||'').trim()
+  const priority=Math.max(1,Math.min(99,Number($('pf_priority')?.value)||meta.length+1))
   if(!/^https?:\/\//.test(baseUrl)) return toast('地址需以 http:// 或 https:// 开头',false)
   const meta=(STATE?.config?.panels||[]).map(p=>({...p}))
   const old=editingPanel>=0?meta[editingPanel]:null
@@ -2108,7 +2152,7 @@ set('pfSave', b => b.onclick=async ()=>{
   if(auth==='admin' && !password && !(old?.hasPassword && username===old.username))
     return toast(editingPanel>=0?'修改 404 用户名后需重新填写密码':'请填写 404 面板管理员密码',false)
   if(auth==='code' && !accessCode && !old?.hasCode) return toast('请填写旧版面板的访问 Code',false)
-  const item={label:label||`FARM${meta.length+1}`,baseUrl,authMode:picked,accessCode,username,password,token}
+  const item={label:label||`FARM${meta.length+1}`,baseUrl,priority,authMode:picked,accessCode,username,password,token}
   if(editingPanel===-2) meta.push(item)
   else if(meta[editingPanel]) Object.assign(meta[editingPanel],{...item,label:label||meta[editingPanel].label})
   try{ await savePanels(meta,STATE.config.activePanel||0); closePanelForm(); toast(editingPanel===-2?'面板已添加':'面板已更新') }
@@ -2205,6 +2249,10 @@ set('btnSave', b => b.onclick=async ()=>{
       pushOnLogin:$('f_pushOnLogin')?.checked,
       refreshMinutes:Number($('f_refreshMinutes')?.value)||0,
       staleHours:Number($('f_staleHours')?.value)||0,
+      panelStrategy:$('f_panelStrategy')?.value||'broadcast',
+      maxConcurrent:Number($('f_maxConcurrent')?.value)||2,
+      circuitFails:Number($('f_circuitFails')?.value)||5,
+      circuitCooldownMinutes:Number($('f_circuitCooldownMinutes')?.value)||5,
       autoRepair:$('f_autoRepair')?.checked,
       repairMinutes:Number($('f_repairMinutes')?.value)||30,
       alertFails:Number($('f_alertFails')?.value)||3,
@@ -2223,6 +2271,27 @@ set('saveRow', row=>{
   const mark=()=>row.classList.add('dirty-on')
   form.addEventListener('input', mark)
   form.addEventListener('change', mark)
+})
+
+let lastBackupAt=0, backupLoading=false
+async function refreshConfigBackups(){
+  const sel=$('cfgBackupSelect'); if(!sel||backupLoading||Date.now()-lastBackupAt<30000)return
+  backupLoading=true
+  try{
+    const res=await fetch('api/config/backups',{cache:'no-store'}); const j=await res.json()
+    const list=Array.isArray(j.backups)?j.backups:[]
+    sel.innerHTML='<option value="">选择配置备份</option>'+list.map(x=>`<option value="${esc(x.name)}">${esc(x.name)} · ${Math.max(0,Math.round(Number(x.bytes||0)/1024))} KB</option>`).join('')
+  }catch{ sel.innerHTML='<option value="">备份读取失败</option>' }
+  finally{backupLoading=false;lastBackupAt=Date.now()}
+}
+set('btnCfgRollback', b=>b.onclick=async()=>{
+  const name=$('cfgBackupSelect')?.value
+  if(!name)return toast('请先选择配置备份',false)
+  if(!await confirmAction(`将当前配置回滚到「${name}」，当前配置会先自动备份。继续？`,{title:'回滚配置',confirmText:'回滚并重载',danger:true}))return
+  b.disabled=true
+  try{await post('api/config/rollback',{name});toast('配置已回滚并立即生效');await refreshConfigBackups()}
+  catch(e){toast('回滚失败：'+e.message,false)}
+  b.disabled=false
 })
 
 /* ---------- 导出诊断包（脱敏：不含面板访问 Code） ---------- */
@@ -2264,7 +2333,7 @@ set('btnExport', b => b.onclick=()=>{
     config:{
       enabled:cfg.enabled, pushOnLogin:cfg.pushOnLogin,
       refreshMinutes:cfg.refreshMinutes, staleHours:cfg.staleHours, activePanel:cfg.activePanel,
-      panels:(cfg.panels||[]).map(p=>({label:p.label,baseUrl:p.baseUrl,hasCode:p.hasCode,mode:p.mode,authMode:p.authMode,username:p.username,hasPassword:p.hasPassword,hasToken:p.hasToken,hasAuth:p.hasAuth})),
+      panels:(cfg.panels||[]).map(p=>({label:p.label,baseUrl:p.baseUrl,priority:p.priority,hasCode:p.hasCode,mode:p.mode,authMode:p.authMode,username:p.username,hasPassword:p.hasPassword,hasToken:p.hasToken,hasAuth:p.hasAuth})),
     },
     accounts:STATE.accounts||[],
     panels:(STATE.panels||[]).map(p=>({

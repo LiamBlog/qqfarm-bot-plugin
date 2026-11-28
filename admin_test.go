@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -75,5 +76,57 @@ func TestConfigKeepsPanelPasswordWhenBlank(t *testing.T) {
 	p = cfg.Get().Panels[0]
 	if p.Username != "root" || p.Password != "" {
 		t.Fatalf("更换用户名后不应保留旧密码：%+v", p)
+	}
+}
+
+func TestConfigPanelPauseToggleAndLegacyPreservation(t *testing.T) {
+	t.Setenv("MENGKA_PLUGIN_ADMIN_TOKEN_FILE", "")
+	t.Setenv("MENGKA_PLUGIN_ADMIN_ORIGIN", "")
+	dir := t.TempDir()
+	cfg := LoadConfig(dir)
+	farm := cfg.Get()
+	farm.Panels = []Panel{{Label: "A", BaseURL: "http://panel.test", AccessCode: "secret-code", Paused: true}}
+	if err := cfg.Set(farm); err != nil {
+		t.Fatal(err)
+	}
+	bridge := newBridge(cfg, newFakeIPC(t, "X"), dir)
+	a := newAdmin(cfg, bridge, dir)
+	exportRec := httptest.NewRecorder()
+	a.handler(exportRec, httptest.NewRequest(http.MethodGet, "/api/config/export", nil))
+	if exportRec.Code != http.StatusOK {
+		t.Fatalf("导出配置失败：%d %s", exportRec.Code, exportRec.Body.String())
+	}
+	var exported struct {
+		Farm struct {
+			Panels []Panel `json:"panels"`
+		} `json:"farm"`
+	}
+	if err := json.Unmarshal(exportRec.Body.Bytes(), &exported); err != nil {
+		t.Fatal(err)
+	}
+	if len(exported.Farm.Panels) != 1 || !exported.Farm.Panels[0].Paused {
+		t.Fatalf("导出配置应包含面板暂停状态：%+v", exported.Farm.Panels)
+	}
+	importRec := httptest.NewRecorder()
+	a.handler(importRec, httptest.NewRequest(http.MethodPost, "/api/config/import", strings.NewReader(exportRec.Body.String())))
+	if importRec.Code != http.StatusOK || !cfg.Get().Panels[0].Paused {
+		t.Fatalf("配置导入未保留面板暂停状态：%d %s", importRec.Code, importRec.Body.String())
+	}
+	post := func(body string) {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, "/api/config", strings.NewReader(body))
+		a.handler(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("保存面板配置失败：%d %s", rec.Code, rec.Body.String())
+		}
+	}
+	post(`{"farm":{"panels":[{"label":"A","baseUrl":"http://panel.test"}]}}`)
+	if !cfg.Get().Panels[0].Paused {
+		t.Fatal("旧客户端省略 paused 时不应意外恢复自动推送")
+	}
+	post(`{"farm":{"panels":[{"label":"A","baseUrl":"http://panel.test","paused":false}]}}`)
+	if cfg.Get().Panels[0].Paused {
+		t.Fatal("paused=false 应恢复面板自动推送")
 	}
 }

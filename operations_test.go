@@ -328,6 +328,26 @@ func TestAutomaticTaskHonorsPauseBeforeExecution(t *testing.T) {
 		t.Fatal("paused automatic task executed")
 	}
 }
+func TestAutomaticTaskHonorsPanelPauseBeforeExecution(t *testing.T) {
+	b := opsTestBridge(t)
+	b.ops.sem <- struct{}{}
+	b.ops.sem <- struct{}{}
+	id, err := b.ops.Enqueue(Bot{SelfID: 10001, ProtocolID: 0}, "http://a.test", "automatic", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	farm := b.cfg.Get()
+	farm.Panels[0].Paused = true
+	if err := b.cfg.Set(farm); err != nil {
+		t.Fatal(err)
+	}
+	<-b.ops.sem
+	<-b.ops.sem
+	awaitTask(t, b.ops, id, "cancelled")
+	if b.ops.Stats()["todayAttempts"] != 0 {
+		t.Fatal("panel-paused automatic task executed")
+	}
+}
 func TestUncertainWriteStopsWithoutAutomaticReplay(t *testing.T) {
 	var posts atomic.Int32
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -363,5 +383,143 @@ func TestSuccessfulPushSupersedesOnlyWaitingRetries(t *testing.T) {
 	v := awaitTask(t, b.ops, id, "cancelled")
 	if !strings.Contains(v.Stage, "其他操作") {
 		t.Fatal(v.Stage)
+	}
+}
+
+func TestAutomaticPanelStrategySkipsOpenPrimary(t *testing.T) {
+	b := opsTestBridge(t)
+	f := b.cfg.Get()
+	f.PanelStrategy = "primary_backup"
+	f.Panels = []Panel{{Label: "主面板", BaseURL: "http://primary.test", Priority: 1, Token: "p", AuthMode: "token"}, {Label: "备用面板", BaseURL: "http://backup.test", Priority: 2, Token: "b", AuthMode: "token"}}
+	if err := b.cfg.Set(f); err != nil {
+		t.Fatal(err)
+	}
+	r := b.ops.Routing()
+	r.Accounts["10001:0"] = AccountPolicy{Targets: []string{"http://primary.test", "http://backup.test"}}
+	if err := b.ops.SetRouting(r); err != nil {
+		t.Fatal(err)
+	}
+	b.circuitMu.Lock()
+	if b.circuits == nil {
+		b.circuits = map[string]panelCircuit{}
+	}
+	b.circuits["http://primary.test"] = panelCircuit{Failures: 5, OpenedUntil: time.Now().Add(time.Hour).UnixMilli()}
+	b.circuitMu.Unlock()
+	got := b.ops.Targets(Bot{SelfID: 10001, ProtocolID: 0}, true)
+	if len(got) != 1 || got[0] != "http://backup.test" {
+		t.Fatalf("应选择备用面板，实际=%v", got)
+	}
+	r.Accounts["10001:0"] = AccountPolicy{Targets: []string{"http://primary.test"}}
+	if err := b.ops.SetRouting(r); err != nil {
+		t.Fatal(err)
+	}
+	if got := b.ops.Targets(Bot{SelfID: 10001, ProtocolID: 0}, true); len(got) != 0 {
+		t.Fatalf("唯一目标熔断时应跳过，实际=%v", got)
+	}
+}
+
+func TestBroadcastStrategyKeepsAllTargets(t *testing.T) {
+	b := opsTestBridge(t)
+	f := b.cfg.Get()
+	f.PanelStrategy = "broadcast"
+	f.Panels = []Panel{{Label: "A", BaseURL: "http://a.test", Priority: 1, Token: "a", AuthMode: "token"}, {Label: "B", BaseURL: "http://b.test", Priority: 2, Token: "b", AuthMode: "token"}}
+	if err := b.cfg.Set(f); err != nil {
+		t.Fatal(err)
+	}
+	r := b.ops.Routing()
+	r.Accounts["10001:0"] = AccountPolicy{Targets: []string{"http://a.test", "http://b.test"}}
+	if err := b.ops.SetRouting(r); err != nil {
+		t.Fatal(err)
+	}
+	got := b.ops.Targets(Bot{SelfID: 10001, ProtocolID: 0}, true)
+	if len(got) != 2 || got[0] != "http://a.test" || got[1] != "http://b.test" {
+		t.Fatalf("广播策略不应筛选目标：%v", got)
+	}
+}
+
+func TestFirstAvailableKeepsRoutingOrder(t *testing.T) {
+	b := opsTestBridge(t)
+	f := b.cfg.Get()
+	f.PanelStrategy = "first_available"
+	f.Panels = []Panel{{Label: "低优先级", BaseURL: "http://low.test", Priority: 9, Token: "l", AuthMode: "token"}, {Label: "高优先级", BaseURL: "http://high.test", Priority: 1, Token: "h", AuthMode: "token"}}
+	if err := b.cfg.Set(f); err != nil {
+		t.Fatal(err)
+	}
+	r := b.ops.Routing()
+	r.Accounts["10001:0"] = AccountPolicy{Targets: []string{"http://low.test", "http://high.test"}}
+	if err := b.ops.SetRouting(r); err != nil {
+		t.Fatal(err)
+	}
+	got := b.ops.Targets(Bot{SelfID: 10001, ProtocolID: 0}, true)
+	if len(got) != 1 || got[0] != "http://low.test" {
+		t.Fatalf("首个可用应保留路由顺序，实际=%v", got)
+	}
+}
+
+func TestPanelPauseFiltersAutomaticPushOnly(t *testing.T) {
+	for _, strategy := range []string{"broadcast", "primary_backup", "first_available"} {
+		t.Run(strategy, func(t *testing.T) {
+			b := opsTestBridge(t)
+			farm := b.cfg.Get()
+			farm.PanelStrategy = strategy
+			farm.Panels = []Panel{
+				{Label: "A", BaseURL: "http://a.test", Priority: 1, Token: "a", AuthMode: "token", Paused: true},
+				{Label: "B", BaseURL: "http://b.test", Priority: 2, Token: "b", AuthMode: "token"},
+			}
+			if err := b.cfg.Set(farm); err != nil {
+				t.Fatal(err)
+			}
+			routing := b.ops.Routing()
+			routing.Accounts["10001:0"] = AccountPolicy{Targets: []string{"http://a.test", "http://b.test"}}
+			if err := b.ops.SetRouting(routing); err != nil {
+				t.Fatal(err)
+			}
+			bot := Bot{SelfID: 10001, ProtocolID: 0}
+			if got := b.ops.Targets(bot, true); len(got) != 1 || got[0] != "http://b.test" {
+				t.Fatalf("自动推送应跳过暂停面板，实际=%v", got)
+			}
+			if got := b.ops.Targets(bot, false); len(got) != 2 || got[0] != "http://a.test" || got[1] != "http://b.test" {
+				t.Fatalf("手动目标不应受暂停状态限制，实际=%v", got)
+			}
+			farm = b.cfg.Get()
+			farm.Panels[1].Paused = true
+			if err := b.cfg.Set(farm); err != nil {
+				t.Fatal(err)
+			}
+			if got := b.ops.Targets(bot, true); len(got) != 0 {
+				t.Fatalf("全部暂停时不应创建自动推送目标，实际=%v", got)
+			}
+		})
+	}
+}
+
+func TestBroadcastSkipsCircuitOpenPanelButKeepsManualTarget(t *testing.T) {
+	b := opsTestBridge(t)
+	farm := b.cfg.Get()
+	farm.PanelStrategy = "broadcast"
+	farm.Panels = []Panel{
+		{Label: "A", BaseURL: "http://a.test", Priority: 1, Token: "a", AuthMode: "token"},
+		{Label: "B", BaseURL: "http://b.test", Priority: 2, Token: "b", AuthMode: "token"},
+	}
+	if err := b.cfg.Set(farm); err != nil {
+		t.Fatal(err)
+	}
+	routing := b.ops.Routing()
+	routing.Accounts["10001:0"] = AccountPolicy{Targets: []string{"http://a.test", "http://b.test"}}
+	if err := b.ops.SetRouting(routing); err != nil {
+		t.Fatal(err)
+	}
+	b.circuitMu.Lock()
+	if b.circuits == nil {
+		b.circuits = map[string]panelCircuit{}
+	}
+	b.circuits["http://a.test"] = panelCircuit{Failures: 5, OpenedUntil: time.Now().Add(time.Hour).UnixMilli()}
+	b.circuitMu.Unlock()
+	bot := Bot{SelfID: 10001, ProtocolID: 0}
+	if got := b.ops.Targets(bot, true); len(got) != 1 || got[0] != "http://b.test" {
+		t.Fatalf("广播自动推送应跳过已熔断目标，实际=%v", got)
+	}
+	if got := b.ops.Targets(bot, false); len(got) != 2 || got[0] != "http://a.test" || got[1] != "http://b.test" {
+		t.Fatalf("手动目标不应受熔断策略限制，实际=%v", got)
 	}
 }
